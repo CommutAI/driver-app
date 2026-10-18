@@ -11,8 +11,9 @@
 --    • Notifications and audit logging
 -- ============================================================
 
--- Enable UUID extension
+-- Enable UUID extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================================
 --  ENUMS
@@ -42,13 +43,15 @@ CREATE TABLE staff_users (
 );
 
 -- ── buses ───────────────────────────────────────────────────────────────────────
--- Bus details (plate, route, capacity)
+-- Bus details (plate, route, capacity, staff assignments)
 CREATE TABLE buses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   plate_number TEXT UNIQUE NOT NULL,
   route_code TEXT NOT NULL,
   route_name TEXT,
   capacity INTEGER NOT NULL,
+  assigned_driver_id UUID REFERENCES staff_users(id) ON DELETE SET NULL,
+  assigned_conductor_id UUID REFERENCES staff_users(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -58,15 +61,26 @@ CREATE TABLE buses (
 -- Active and past trips (linked to conductor/driver)
 CREATE TABLE trips (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  conductor_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
-  bus_id UUID NOT NULL REFERENCES buses(id) ON DELETE RESTRICT,
-  route_code TEXT NOT NULL,
+  schedule_id UUID,
+  bus_id UUID REFERENCES buses(id) ON DELETE RESTRICT,
+  route_id UUID,
+  trip_number INTEGER,
+  conductor_id UUID REFERENCES staff_users(id) ON DELETE CASCADE,
+  driver_id UUID REFERENCES staff_users(id) ON DELETE CASCADE,
+  operator_id UUID REFERENCES staff_users(id) ON DELETE SET NULL,
+  shift_id UUID,
   status trip_status NOT NULL DEFAULT 'scheduled',
   started_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ,
-  current_latitude DECIMAL(10, 8),
-  current_longitude DECIMAL(11, 8),
-  current_passenger_count INTEGER DEFAULT 0,
+  current_lat DECIMAL(10, 8),
+  current_lng DECIMAL(11, 8),
+  gps_updated_at TIMESTAMPTZ,
+  current_stop_id UUID,
+  starting_point TEXT,
+  end_point TEXT,
+  total_passengers INTEGER DEFAULT 0,
+  total_fares DECIMAL(10, 2) DEFAULT 0,
+  incidents INTEGER DEFAULT 0,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -109,11 +123,12 @@ CREATE TABLE gps_locations (
 );
 
 -- ── emergency_alerts ────────────────────────────────────────────────────────────
--- Emergency alerts triggered by driver
+-- Emergency alerts triggered by driver or conductor
 CREATE TABLE emergency_alerts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-  conductor_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  conductor_id UUID REFERENCES staff_users(id) ON DELETE CASCADE,
+  driver_id UUID REFERENCES staff_users(id) ON DELETE CASCADE,
   alert_type alert_type NOT NULL,
   description TEXT NOT NULL,
   latitude DECIMAL(10, 8),
@@ -154,9 +169,12 @@ CREATE TABLE audit_logs (
 -- ============================================================
 
 CREATE INDEX idx_trips_conductor_id ON trips(conductor_id);
+CREATE INDEX idx_trips_driver_id ON trips(driver_id);
 CREATE INDEX idx_trips_bus_id ON trips(bus_id);
 CREATE INDEX idx_trips_status ON trips(status);
 CREATE INDEX idx_trips_started_at ON trips(started_at);
+CREATE INDEX idx_trips_route_id ON trips(route_id);
+CREATE INDEX idx_trips_schedule_id ON trips(schedule_id);
 
 CREATE INDEX idx_passenger_counts_trip_id ON passenger_counts(trip_id);
 CREATE INDEX idx_passenger_counts_recorded_at ON passenger_counts(recorded_at);
@@ -169,6 +187,7 @@ CREATE INDEX idx_gps_locations_recorded_at ON gps_locations(recorded_at);
 
 CREATE INDEX idx_emergency_alerts_trip_id ON emergency_alerts(trip_id);
 CREATE INDEX idx_emergency_alerts_conductor_id ON emergency_alerts(conductor_id);
+CREATE INDEX idx_emergency_alerts_driver_id ON emergency_alerts(driver_id);
 CREATE INDEX idx_emergency_alerts_is_resolved ON emergency_alerts(is_resolved);
 
 CREATE INDEX idx_notifications_trip_id ON notifications(trip_id);
@@ -210,26 +229,38 @@ CREATE POLICY "buses_read_all"
   USING (true);
 
 -- ── RLS: trips ─────────────────────────────────────────────────────────────────
--- Drivers can read their own trips; admins can read all
+-- Both conductors and drivers can read their own trips; admins can read all
 CREATE POLICY "trips_read_own"
   ON trips FOR SELECT
-  USING (conductor_id = auth.uid() OR current_user_role() = 'admin');
+  USING (
+    conductor_id = auth.uid()
+    OR driver_id = auth.uid()
+    OR current_user_role() = 'admin'
+  );
 
 CREATE POLICY "trips_insert_own"
   ON trips FOR INSERT
-  WITH CHECK (conductor_id = auth.uid());
+  WITH CHECK (
+    conductor_id = auth.uid()
+    OR driver_id = auth.uid()
+    OR current_user_role() = 'admin'
+  );
 
 CREATE POLICY "trips_update_own"
   ON trips FOR UPDATE
-  USING (conductor_id = auth.uid());
+  USING (
+    conductor_id = auth.uid()
+    OR driver_id = auth.uid()
+    OR current_user_role() = 'admin'
+  );
 
 -- ── RLS: passenger_counts ─────────────────────────────────────────────────────
--- Drivers can read counts for their trips; admins can read all
+-- Both conductors and drivers can read counts for their trips; admins can read all
 CREATE POLICY "passenger_counts_read_own"
   ON passenger_counts FOR SELECT
   USING (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
     OR current_user_role() = 'admin'
   );
@@ -238,17 +269,17 @@ CREATE POLICY "passenger_counts_insert_own"
   ON passenger_counts FOR INSERT
   WITH CHECK (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
   );
 
 -- ── RLS: boarded_passengers ───────────────────────────────────────────────────
--- Drivers can read boarded passengers for their trips; admins can read all
+-- Both conductors and drivers can read boarded passengers for their trips; admins can read all
 CREATE POLICY "boarded_passengers_read_own"
   ON boarded_passengers FOR SELECT
   USING (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
     OR current_user_role() = 'admin'
   );
@@ -257,17 +288,17 @@ CREATE POLICY "boarded_passengers_insert_own"
   ON boarded_passengers FOR INSERT
   WITH CHECK (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
   );
 
 -- ── RLS: gps_locations ────────────────────────────────────────────────────────
--- Drivers can read GPS for their trips; admins can read all
+-- Both conductors and drivers can read GPS for their trips; admins can read all
 CREATE POLICY "gps_locations_read_own"
   ON gps_locations FOR SELECT
   USING (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
     OR current_user_role() = 'admin'
   );
@@ -276,33 +307,42 @@ CREATE POLICY "gps_locations_insert_own"
   ON gps_locations FOR INSERT
   WITH CHECK (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
   );
 
 -- ── RLS: emergency_alerts ───────────────────────────────────────────────────────
--- Drivers can read their own alerts; admins can read all
+-- Both conductors and drivers can read their own alerts; admins can read all
 CREATE POLICY "emergency_alerts_read_own"
   ON emergency_alerts FOR SELECT
   USING (
-    conductor_id = auth.uid() OR current_user_role() = 'admin'
+    conductor_id = auth.uid()
+    OR driver_id = auth.uid()
+    OR current_user_role() = 'admin'
   );
 
 CREATE POLICY "emergency_alerts_insert_own"
   ON emergency_alerts FOR INSERT
-  WITH CHECK (conductor_id = auth.uid());
+  WITH CHECK (
+    conductor_id = auth.uid()
+    OR driver_id = auth.uid()
+  );
 
 CREATE POLICY "emergency_alerts_update_own"
   ON emergency_alerts FOR UPDATE
-  USING (conductor_id = auth.uid() OR current_user_role() = 'admin');
+  USING (
+    conductor_id = auth.uid()
+    OR driver_id = auth.uid()
+    OR current_user_role() = 'admin'
+  );
 
 -- ── RLS: notifications ───────────────────────────────────────────────────────────
--- Drivers can read notifications for their trips; admins can read all
+-- Both conductors and drivers can read notifications for their trips; admins can read all
 CREATE POLICY "notifications_read_own"
   ON notifications FOR SELECT
   USING (
     trip_id IN (
-      SELECT id FROM trips WHERE conductor_id = auth.uid()
+      SELECT id FROM trips WHERE conductor_id = auth.uid() OR driver_id = auth.uid()
     )
     OR sender_id = auth.uid()
     OR current_user_role() = 'admin'
@@ -347,6 +387,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to auto-assign conductor and driver from bus assignment
+CREATE OR REPLACE FUNCTION auto_assign_staff_from_bus()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Auto-assign conductor from bus's assigned_conductor_id if not provided
+  IF NEW.conductor_id IS NULL THEN
+    SELECT assigned_conductor_id INTO NEW.conductor_id
+    FROM buses
+    WHERE id = NEW.bus_id;
+  END IF;
+
+  -- Auto-assign driver from bus's assigned_driver_id if not provided
+  IF NEW.driver_id IS NULL THEN
+    SELECT assigned_driver_id INTO NEW.driver_id
+    FROM buses
+    WHERE id = NEW.bus_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================
 --  TRIGGERS
 -- ============================================================
@@ -366,34 +428,16 @@ CREATE TRIGGER update_trips_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- ============================================================
---  SEED DATA
--- ============================================================
-
--- Insert sample bus
-INSERT INTO buses (plate_number, route_code, route_name, capacity)
-VALUES ('BUS-001', 'R001', 'City Center - Airport', 45)
-ON CONFLICT (plate_number) DO NOTHING;
-
--- Insert sample driver (you should update the UUID to match your Supabase Auth user)
--- Note: The email should match your Supabase Auth user email
-INSERT INTO staff_users (id, email, full_name, phone, role, bus_id)
-VALUES (
-  '00000000-0000-0000-0000-000000000000', -- Replace with actual auth.uid()
-  'driver@omanfortsco.com',
-  'John Driver',
-  '+1234567890',
-  'driver',
-  (SELECT id FROM buses WHERE plate_number = 'BUS-001')
-)
-ON CONFLICT (email) DO NOTHING;
+CREATE TRIGGER trigger_auto_assign_staff_from_bus
+  BEFORE INSERT ON trips
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_assign_staff_from_bus();
 
 -- ============================================================
 --  SETUP INSTRUCTIONS
 -- ============================================================
--- 1. Run this schema in Supabase SQL Editor
--- 2. Create a user in Supabase Auth with email: driver@omanfortsco.com
--- 3. Update the staff_users.id to match the actual auth.uid() from step 2:
---    UPDATE staff_users SET id = '<actual-uuid>' WHERE email = 'driver@omanfortsco.com';
--- 4. The driver app will now authenticate and load the assigned bus
+-- 1. Run this schema in Supabase SQL Editor to create all tables
+-- 2. Run setup_users.sql to create driver and conductor users with bus assignments
+-- 3. Create users in Supabase Auth with the emails specified in setup_users.sql
+-- 4. The driver/conductor app will now authenticate and load the assigned bus
 -- ============================================================
