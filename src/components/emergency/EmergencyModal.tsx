@@ -38,12 +38,24 @@ export default function EmergencyModal({ open, onClose }: Props) {
 
   const [step,     setStep]     = useState<Step>('select')
   const [selected, setSelected] = useState<EOption | null>(null)
-  const [note,     setNote]     = useState('')
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
 
+  const driverPhone = user?.phone?.trim() ? user.phone.trim() : 'N/A'
+  const locationStr = location
+    ? ` Location: ${Number(location.latitude).toFixed(4)}, ${Number(location.longitude).toFixed(4)}`
+    : ''
+  const mapLink = location
+    ? ` Map: https://www.google.com/maps?q=${location.latitude},${location.longitude}`
+    : ''
+
+  // Build SMS message for preview
+  const smsMessage = selected
+    ? `EMERGENCY ALERT [${selected.label}] Bus ${bus?.bus_number ?? bus?.plate_number ?? 'Unknown'}: ${selected.label}.${locationStr}${mapLink} Driver: ${user?.full_name} Phone: ${driverPhone}`
+    : ''
+
   function handleClose() {
-    setStep('select'); setSelected(null); setNote(''); setError(null)
+    setStep('select'); setSelected(null); setError(null)
     onClose()
   }
 
@@ -53,41 +65,34 @@ export default function EmergencyModal({ open, onClose }: Props) {
     setLoading(true)
     setError(null)
 
-    // Build notes: "[Type] note"
-    const notes = selected.label + (note.trim() ? ': ' + note.trim() : '')
+    // Build notes: "[Type]"
+    const notes = selected.label
 
-    // Handle demo driver account gracefully
-    if (user.id === 'demo-driver-uuid') {
-      try {
-        await (supabase.from('notifications') as any).insert({
-          message: `[DEMO EMERGENCY - ${selected.label}] Bus ${bus?.bus_number ?? '1001'}: ${notes}`,
-          type: 'alert',
-        })
-      } catch {
-        // Continue to success screen
-      }
-      setStep('sent')
-      setLoading(false)
-      return
-    }
+    // Use coordinates from GPS (will be stored in database)
+    const locationCoords = location
+      ? `${location.latitude.toFixed(4)},${location.longitude.toFixed(4)}`
+      : 'Unknown'
 
     try {
       // Find a valid trip_id if trip is not active
-      let targetTripId = trip?.id
+      let targetTripId: string | null = trip?.id ?? null
       if (!targetTripId) {
         const { data: latestTrip } = await (supabase.from('trips') as any)
           .select('id')
           .order('started_at', { ascending: false })
           .limit(1)
           .maybeSingle()
-        targetTripId = latestTrip?.id
+        targetTripId = latestTrip?.id ?? null
       }
 
+      let emergencyAlertId: string | null = null
+
       if (targetTripId) {
-        const { error: alertErr } = await (supabase.from('emergency_alerts') as any).insert({
+        const { data: alertData, error: alertErr } = await (supabase.from('emergency_alerts') as any).insert({
           trip_id: targetTripId,
           conductor_id: user.id,
           bus_id: bus?.id ?? null,
+          alert_type: selected?.label?.toLowerCase() ?? 'other',
           lat: location?.latitude ?? null,
           lng: location?.longitude ?? null,
           notes,
@@ -97,25 +102,30 @@ export default function EmergencyModal({ open, onClose }: Props) {
           location_lng: location?.longitude ?? null,
           location_source: location?.source || (location ? 'gps' : 'unknown'),
           location_accuracy: location?.accuracy ?? null,
-        })
+        }).select('id').single()
 
         if (alertErr) {
           console.warn('Could not insert to emergency_alerts table, falling back to notifications:', alertErr)
+        } else {
+          emergencyAlertId = alertData?.id ?? null
         }
       }
 
       // Always broadcast to notifications table (realtime alert across system)
       await (supabase.from('notifications') as any).insert({
-        message: `EMERGENCY ALERT [${selected.label}] Bus ${bus?.bus_number ?? bus?.plate_number ?? 'OMANFORTSCO'}: ${notes}`,
+        message: `EMERGENCY ALERT [${selected.label}] Bus ${bus?.bus_number ?? bus?.plate_number ?? 'OMANFORTSCO'}: ${notes} | Driver: ${user?.full_name ?? 'Unknown'} | Phone: ${user?.phone ?? 'N/A'}`,
         type: 'alert',
       })
+
+      // Queue SMS messages to recipients
+      await queueEmergencySMS(emergencyAlertId, targetTripId, notes, locationCoords)
 
       // Also log audit log
       await (supabase.from('audit_logs') as any).insert({
         username: user.email,
         action: 'CREATE',
         module: 'driver_app_emergency',
-        details: `Emergency Alert Triggered: ${notes}`,
+        details: `Emergency Alert Triggered: ${notes} | Driver: ${user?.full_name ?? 'Unknown'} | Phone: ${driverPhone}`,
       }).then(() => {}).catch(() => {})
 
       setStep('sent')
@@ -128,23 +138,113 @@ export default function EmergencyModal({ open, onClose }: Props) {
     }
   }
 
+  async function queueEmergencySMS(emergencyAlertId: string | null, tripId: string | null, notes: string, locationCoords: string) {
+    try {
+      // Fetch emergency contacts from database
+      const { data: emergencyContacts } = await (supabase.from('emergency_contacts') as any)
+        .select('name, phone, relationship')
+        .eq('is_active', true)
+
+      // Fetch staff users with admin and operator roles who have phone numbers
+      const { data: staffRecipients } = await (supabase.from('staff_users') as any)
+        .select('full_name, phone, role')
+        .in('role', ['admin', 'operator'])
+        .not('phone', 'is', null)
+        .eq('is_active', true)
+
+      // Build emergency message with driver phone number (single-line, no newlines)
+      const message = `EMERGENCY ${selected?.label} Bus${bus?.bus_number ?? bus?.plate_number ?? '?'} Loc:${locationCoords} Driver:${user?.full_name ?? '?'} Contact:${user?.phone ?? 'N/A'}`
+
+      // Collect all unique phone numbers
+      const recipients = new Map<string, { name: string; type: string }>()
+
+      // Add emergency contacts (priority = 10)
+      emergencyContacts?.forEach((contact: any) => {
+        if (contact.phone) {
+          recipients.set(contact.phone, {
+            name: contact.name,
+            type: 'emergency_contact',
+          })
+        }
+      })
+
+      // Add staff recipients (priority = 5)
+      staffRecipients?.forEach((staff: any) => {
+        if (staff.phone) {
+          const existing = recipients.get(staff.phone)
+          if (!existing) {
+            recipients.set(staff.phone, {
+              name: staff.full_name,
+              type: staff.role,
+            })
+          }
+        }
+      })
+
+      // Insert SMS queue entries for each recipient
+      const smsInserts = Array.from(recipients.entries()).map(([phone, { name, type }]) => ({
+        phone_number: phone,
+        message,
+        sms_type: 'emergency',
+        trip_id: tripId,
+        status: 'pending',
+        priority: type === 'emergency_contact' ? 10 : 5,
+        metadata: {
+          recipient_name: name,
+          recipient_type: type,
+          emergency_type: selected?.label,
+          bus_number: bus?.bus_number,
+          bus_plate: bus?.plate_number,
+          driver_name: user?.full_name,
+          driver_phone: user?.phone ?? null,
+          location: location ? { lat: location.latitude, lng: location.longitude } : null,
+          notes,
+          emergency_alert_id: emergencyAlertId,
+        },
+        max_retries: 3,
+      }))
+
+      if (smsInserts.length > 0) {
+        await (supabase.from('sms_queue') as any).insert(smsInserts)
+        console.log(`Queued ${smsInserts.length} SMS messages for emergency alert`)
+      }
+    } catch (e) {
+      console.error('Failed to queue emergency SMS:', e)
+      // Don't fail the emergency alert if SMS queue fails
+    }
+  }
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
           className="modal-overlay"
-          style={{ zIndex: 10000 }}
+          style={{
+            zIndex: 10000,
+            position: 'fixed',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          }}
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={step !== 'sent' ? handleClose : undefined}
         >
           <motion.div
             className="modal-content"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0,  opacity: 1 }}
-            exit={{ y: 80,    opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
             onClick={e => e.stopPropagation()}
-            style={{ borderTop: '3px solid #EF4444' }}
+            style={{
+              borderTop: '3px solid #EF4444',
+              maxWidth: '90vw',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
           >
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -203,6 +303,7 @@ export default function EmergencyModal({ open, onClose }: Props) {
                 {/* Context */}
                 <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 14, fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span>Staff: <strong style={{ color: 'var(--text-primary)' }}>{user?.full_name}</strong></span>
+                  <span>Driver Phone: <strong style={{ color: 'var(--text-primary)' }}>{driverPhone}</strong></span>
                   <span>Bus: <strong style={{ color: 'var(--text-primary)' }}>{bus?.plate_number ?? '—'}</strong></span>
                   {trip && <span>Trip: <strong style={{ color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.78rem' }}>{trip.id.slice(0, 13)}…</strong></span>}
                   {location && (
@@ -212,19 +313,27 @@ export default function EmergencyModal({ open, onClose }: Props) {
                   )}
                 </div>
 
-                {/* Note */}
+                {/* SMS Message Preview */}
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                    Additional note (optional)
+                    SMS Message to be sent
                   </label>
-                  <textarea
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    rows={2}
-                    maxLength={200}
-                    placeholder="Brief description of the situation…"
-                    style={{ width: '100%', padding: '10px 12px', resize: 'none', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--text-primary)', fontSize: '0.88rem', fontFamily: 'var(--font-family)' }}
-                  />
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1.5px solid var(--glass-border)',
+                      background: 'var(--glass-bg)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.82rem',
+                      fontFamily: 'monospace',
+                      lineHeight: 1.5,
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {smsMessage}
+                  </div>
                 </div>
 
                 {error && (

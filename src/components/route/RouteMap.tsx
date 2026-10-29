@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { GpsLocation } from '../../types'
@@ -271,18 +271,24 @@ function MapInvalidator() {
 
 function MapRouteFitter({ coordinates, busStops }: { coordinates: [number, number][], busStops: ParsedStop[] }) {
   const map = useMap()
-  
+  const hasFitted = useRef(false)
+
   useEffect(() => {
+    if (hasFitted.current) return // Only fit bounds once on initial load
+
     if (coordinates.length > 0) {
       const bounds = L.latLngBounds(coordinates)
       map.fitBounds(bounds, { padding: [50, 50] })
+      hasFitted.current = true
     } else if (busStops.length > 0) {
-      const allCoordinates = busStops.map(stop => [Number(stop.latitude), Number(stop.longitude)] as [number, number])
+      const terminalStops = busStops.filter(stop => stop.status === 'START' || stop.status === 'END')
+      const allCoordinates = terminalStops.map(stop => [Number(stop.latitude), Number(stop.longitude)] as [number, number])
       const bounds = L.latLngBounds(allCoordinates)
       map.fitBounds(bounds, { padding: [50, 50] })
+      hasFitted.current = true
     }
   }, [coordinates, busStops, map])
-  
+
   return null
 }
 
@@ -369,7 +375,7 @@ export default function RouteMap({ stops, busLocation, destinationTitle, routeDi
           />
         )}
 
-        {stops.map((stop) => {
+        {stops.filter(stop => stop.status === 'START' || stop.status === 'END').map((stop) => {
           let icon = activeIcon
           let zIndex = 500
           if (stop.status === 'START') {
@@ -379,7 +385,7 @@ export default function RouteMap({ stops, busLocation, destinationTitle, routeDi
             icon = createDestinationPin(destinationTitle || stop.stop_name)
             zIndex = 1200
           }
-          
+
           return (
             <Marker key={`${stop.id}-${stop.status}-${stop.stop_name}`} position={[Number(stop.latitude), Number(stop.longitude)]} icon={icon} zIndexOffset={zIndex}>
               <Popup>

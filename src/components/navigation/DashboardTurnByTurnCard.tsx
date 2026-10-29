@@ -21,6 +21,7 @@ interface Props {
   distanceToNextManeuver: number
   currentRoadName?: string
   destinationTitle: string
+  routeDirection?: string
   speed?: number
   progress?: RouteProgress | null
   isCalculating?: boolean
@@ -60,6 +61,7 @@ export default function DashboardTurnByTurnCard({
   distanceToNextManeuver,
   currentRoadName,
   destinationTitle,
+  routeDirection,
   speed = 0,
   progress,
   isCalculating = false,
@@ -155,7 +157,7 @@ export default function DashboardTurnByTurnCard({
                 textTransform: 'uppercase',
               }}
             >
-              Turn-By-Turn Active
+              {routeDirection || 'Turn-By-Turn Active'}
             </span>
 
             {speed > 0 && (

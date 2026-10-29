@@ -4,7 +4,7 @@
 
 // ── Enums ─────────────────────────────────────────────────────
 
-export type StaffRole = 'admin' | 'conductor' | 'cs_desk'
+export type StaffRole = 'admin' | 'conductor' | 'cs_desk' | 'driver' | 'operator'
 
 export type BusStatus = 'active' | 'maintenance' | 'inactive'
 
@@ -23,6 +23,7 @@ export interface StaffUser {
   id: string
   full_name: string
   email: string
+  phone?: string | null
   role: StaffRole
   is_active: boolean
   bus_id: string | null

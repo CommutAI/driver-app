@@ -21,7 +21,6 @@ interface AuthContextValue {
   loading: boolean
   error: string | null
   signIn: (email: string, password: string) => Promise<void>
-  signInAsDemoDriver: () => void
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -59,6 +58,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!data.is_active) {
       setError('Your account is inactive. Contact your administrator.')
+      await supabase.auth.signOut()
+      return
+    }
+
+    // Only drivers can access the driver app
+    if (data.role !== 'driver') {
+      setError('Access denied. Only drivers can access this application.')
       await supabase.auth.signOut()
       return
     }
@@ -136,34 +142,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null)
   }, [user])
 
-  const signInAsDemoDriver = useCallback(() => {
-    const demoUser: StaffUser = {
-      id: 'demo-driver-uuid',
-      full_name: 'Juan Dela Cruz (Driver)',
-      email: 'driver@commutai.com',
-      role: 'conductor',
-      is_active: true,
-      bus_id: 'bus-omanfortsco-001',
-      created_at: new Date().toISOString(),
-    }
-    const demoSession = {
-      user: { id: 'demo-driver-uuid', email: 'driver@commutai.com' },
-      access_token: 'demo-token',
-    } as any
-
-    setSession(demoSession)
-    setSupabaseUser(demoSession.user)
-    setUser(demoUser)
-    setError(null)
-    setLoading(false)
-  }, [])
-
   // ─────────────────────────────────────────────────────────
 
   const value: AuthContextValue = {
     session, supabaseUser, user,
     loading, error,
-    signIn, signInAsDemoDriver, signOut, refreshProfile,
+    signIn, signOut, refreshProfile,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

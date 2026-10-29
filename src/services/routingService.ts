@@ -4,17 +4,6 @@ import { haversineDistance } from '../utils/geoUtils'
 // Standard corridor stops for the Manolo Fortich <-> Agora route
 export const DEFAULT_CORRIDOR_STOPS = [
   { name: 'Manolo Fortich Terminal', coords: [8.3663088, 124.865008] as [number, number] },
-  { name: 'Tankulan', coords: [8.3688, 124.8641] as [number, number] },
-  { name: 'Dicklum', coords: [8.3740, 124.8480] as [number, number] },
-  { name: 'San Miguel', coords: [8.3890, 124.8332] as [number, number] },
-  { name: 'Lunocan', coords: [8.4143, 124.8231] as [number, number] },
-  { name: 'Alae', coords: [8.4244, 124.8128] as [number, number] },
-  { name: 'Bae Upper Puerto', coords: [8.4264, 124.8092] as [number, number] },
-  { name: 'Puerto', coords: [8.5010, 124.7505] as [number, number] },
-  { name: 'Agusan', coords: [8.4886, 124.7382] as [number, number] },
-  { name: 'Tablon', coords: [8.4819, 124.7286] as [number, number] },
-  { name: 'Gusa', coords: [8.4757, 124.6823] as [number, number] },
-  { name: 'Gaisano CDO', coords: [8.4867, 124.6500] as [number, number] },
   { name: 'Agora Terminal', coords: [8.4890748, 124.657629] as [number, number] },
 ]
 

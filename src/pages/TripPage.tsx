@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -13,13 +12,10 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
-  ArrowRight,
   Gauge,
   Copy,
   Check,
   RefreshCw,
-  Compass,
-  Radio,
 } from 'lucide-react'
 
 import { useAuth } from '../contexts/AuthContext'
@@ -60,7 +56,6 @@ function formatElapsed(startedAt?: string | null, _now?: number): string {
 // ─── Component ───────────────────────────────────────────────
 
 export default function TripPage() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const { trip, loading, error, refetch } = useActiveTrip()
   const { bus } = useAssignedBus()
@@ -572,107 +567,6 @@ export default function TripPage() {
                 </div>
               </div>
             </div>
-
-            {/* Route Subtitle Tag */}
-            <div
-              style={{
-                marginTop: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '0.78rem',
-                color: 'rgba(255, 255, 255, 0.7)',
-                fontWeight: 600,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Radio size={14} color="#F97316" />
-                <span>Corridor: {trip.bus?.route ?? bus?.route ?? 'Sayre Highway Corridor'}</span>
-              </div>
-              <span style={{ color: 'rgba(255, 255, 255, 0.45)' }}>Direct Highway Express</span>
-            </div>
-
-            {/* ── PRIMARY CTA: TURN-BY-TURN NAVIGATION LAUNCHER ── */}
-            {trip.status === 'in_progress' && (
-              <motion.button
-              type="button"
-              onClick={() => navigate('/navigation')}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              style={{
-                width: '100%',
-                padding: '16px 18px',
-                borderRadius: 18,
-                background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                border: '1.5px solid rgba(255, 255, 255, 0.3)',
-                boxShadow: '0 10px 30px rgba(249, 115, 22, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
-                color: '#FFFFFF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-                textAlign: 'left',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 14,
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    backdropFilter: 'blur(8px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-                  }}
-                >
-                  <Compass size={24} strokeWidth={2.4} />
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: '1.02rem',
-                      fontWeight: 900,
-                      letterSpacing: '-0.02em',
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    LAUNCH TURN-BY-TURN NAVIGATION
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      color: 'rgba(255, 255, 255, 0.85)',
-                      marginTop: 2,
-                    }}
-                  >
-                    Live GPS, maneuver arrow guidance & lane alerts
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 10,
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <ArrowRight size={18} strokeWidth={2.8} />
-              </div>
-            </motion.button>
-            )}
 
             {/* ── LIVE TELEMETRY & QUICK METRICS (4 CARDS GRID) ── */}
             <div

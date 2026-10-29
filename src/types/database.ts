@@ -18,6 +18,7 @@ export interface Database {
           id: string
           full_name: string
           email: string
+          phone?: string | null
           role: string
           is_active: boolean
           bus_id: string | null
@@ -27,6 +28,7 @@ export interface Database {
           id: string
           full_name: string
           email: string
+          phone?: string | null
           role?: string
           is_active?: boolean
           bus_id?: string | null
@@ -35,6 +37,7 @@ export interface Database {
         Update: {
           full_name?: string
           email?: string
+          phone?: string | null
           role?: string
           is_active?: boolean
           bus_id?: string | null

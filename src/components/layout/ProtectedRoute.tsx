@@ -36,8 +36,9 @@ export default function ProtectedRoute() {
   }
 
   if (!session || !user) return <Navigate to="/login" replace />
-  // Any active staff member can use the driver app
+  // Only drivers can use the driver app
   if (!user.is_active) return <Navigate to="/login" replace />
+  if (user.role !== 'driver') return <Navigate to="/login" replace />
 
   return <Outlet />
 }

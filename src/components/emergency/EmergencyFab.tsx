@@ -17,7 +17,7 @@ export default function EmergencyFab() {
     <>
       <motion.button
         type="button"
-        aria-label="Send emergency alert"
+        aria-label="Emergency"
         onClick={() => setOpen(true)}
         whileTap={{ scale: 0.92 }}
         style={{
@@ -42,7 +42,6 @@ export default function EmergencyFab() {
           animation: 'emergency-pulse 2s ease-in-out infinite',
         }}
       >
-        <span>SOS</span>
         <AlertTriangle size={18} strokeWidth={2.5} />
       </motion.button>
 

@@ -2,12 +2,15 @@ import { CheckCircle2, Circle, MapPin } from 'lucide-react'
 import type { GpsLocation } from '../../types'
 import type { ParsedStop } from '../../hooks/useRouteStops'
 
-function nearestIdx(stops: ParsedStop[], loc: GpsLocation | null): number {
+function nearestIdxFiltered(stops: ParsedStop[], loc: GpsLocation | null): number {
   if (!loc || !stops.length) return -1
+  const filteredStops = stops.filter(stop => stop.status === 'START' || stop.status === 'END')
+  if (!filteredStops.length) return -1
   let minD = Infinity, idx = -1
-  stops.forEach((s, i) => {
+  filteredStops.forEach((s) => {
+    const originalIdx = stops.findIndex(stop => stop.id === s.id)
     const d = Math.hypot(Number(s.latitude) - Number(loc.latitude), Number(s.longitude) - Number(loc.longitude))
-    if (d < minD) { minD = d; idx = i }
+    if (d < minD) { minD = d; idx = originalIdx }
   })
   return idx
 }
@@ -15,7 +18,7 @@ function nearestIdx(stops: ParsedStop[], loc: GpsLocation | null): number {
 interface Props { stops: ParsedStop[]; busLocation: GpsLocation | null }
 
 export default function StopList({ stops, busLocation }: Props) {
-  const currentIdx = nearestIdx(stops, busLocation)
+  const currentIdx = nearestIdxFiltered(stops, busLocation)
 
   return (
     <div style={{ position: 'relative' }}>
@@ -26,11 +29,12 @@ export default function StopList({ stops, busLocation }: Props) {
       }} aria-hidden />
 
       <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-        {stops.map((stop, i) => {
-          const isPast    = i < currentIdx
-          const isCurrent = i === currentIdx
-          const isFirst   = i === 0
-          const isLast    = i === stops.length - 1
+        {stops.filter(stop => stop.status === 'START' || stop.status === 'END').map((stop) => {
+          const originalIdx = stops.findIndex(s => s.id === stop.id)
+          const isPast    = originalIdx < currentIdx
+          const isCurrent = originalIdx === currentIdx
+          const isFirst   = stop.status === 'START'
+          const isLast    = stop.status === 'END'
 
           return (
             <li key={stop.id} style={{

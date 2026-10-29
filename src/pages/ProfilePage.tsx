@@ -38,6 +38,7 @@ export default function ProfilePage() {
   const infoRows = [
     { label: 'Full Name', value: user?.full_name ?? '—' },
     { label: 'Email',     value: user?.email     ?? '—' },
+    { label: 'Phone',     value: user?.phone     ?? '—' },
     { label: 'Staff ID',  value: user?.id.slice(0, 14) + '…', mono: true },
     { label: 'Role',      value: roleLabel },
     { label: 'Assigned Bus', value: bus ? `${bus.bus_number ? `Bus ${bus.bus_number} · ` : ''}${bus.plate_number}` : 'None' },
@@ -121,7 +122,7 @@ export default function ProfilePage() {
         ))}
       </SoftCard>
 
-      {/* ── Emergency SOS Section ── */}
+      {/* ── Emergency Section ── */}
       <SoftCard padding={20}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -134,7 +135,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Emergency SOS
+                Emergency
               </h3>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 Send emergency alert to dispatch

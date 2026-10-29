@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { createPortal } from 'react-dom'
 import {
   ArrowLeft,
   Loader2,
   RefreshCw,
   ArrowRightLeft,
+  AlertTriangle,
 } from 'lucide-react'
 
 import { useActiveTrip } from '../hooks/useActiveTrip'
@@ -46,7 +48,7 @@ export default function DriverNavigationPage() {
   // Connectivity
   const network = useNetworkStatus()
 
-  // Emergency SOS modal state
+  // Emergency modal state
   const [emergencyOpen, setEmergencyOpen] = useState<boolean>(false)
 
   // Route direction state (synced with localStorage and trip)
@@ -105,6 +107,7 @@ export default function DriverNavigationPage() {
 
 
   return (
+    <>
     <div
       style={{
         position: 'fixed',
@@ -246,6 +249,27 @@ export default function DriverNavigationPage() {
                 border: '1px solid rgba(255, 255, 255, 0.15)',
               }}
             />
+
+            <button
+              type="button"
+              onClick={() => setEmergencyOpen(true)}
+              aria-label="Emergency"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid rgba(239, 68, 68, 0.5)',
+                color: '#EF4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <AlertTriangle size={13} />
+            </button>
           </div>
         </div>
       )}
@@ -315,9 +339,13 @@ export default function DriverNavigationPage() {
         network={network}
         onEndTrip={trip ? () => navigate('/trip') : undefined}
       />
-
-      {/* ── Emergency Alert Modal ── */}
-      <EmergencyModal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} />
     </div>
+
+    {/* ── Emergency Alert Modal ── */}
+    {emergencyOpen && createPortal(
+      <EmergencyModal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} />,
+      document.body
+    )}
+  </>
   )
 }

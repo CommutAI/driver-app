@@ -232,10 +232,10 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
     }
   }, [pollFastApi, fetchSupabaseGps])
 
-  // Periodic polling for backend GPS (every 3.5 seconds)
+  // Periodic polling for backend GPS (every 10 seconds)
   useEffect(() => {
     fetchGps()
-    const interval = setInterval(fetchGps, 3500)
+    const interval = setInterval(fetchGps, 10000)
     return () => clearInterval(interval)
   }, [fetchGps])
 

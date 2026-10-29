@@ -2,9 +2,9 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Play, Loader2, CheckCircle2, Bus, AlertTriangle,
+  Play, Loader2, CheckCircle2, Bus,
   ArrowRight, Compass, Satellite, Users, Check,
-  History, ChevronRight, MapPin,
+  History, ChevronRight, MapPin, AlertTriangle,
 } from 'lucide-react'
 import { format, formatDuration, intervalToDuration } from 'date-fns'
 
@@ -21,7 +21,6 @@ import type { Coordinates, Trip } from '../types'
 import RouteMap           from '../components/route/RouteMap'
 import SoftCard           from '../components/ui/SoftCard'
 import StatusBadge        from '../components/ui/StatusBadge'
-import EmergencyModal     from '../components/emergency/EmergencyModal'
 import DashboardTurnByTurnCard from '../components/navigation/DashboardTurnByTurnCard'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -79,7 +78,6 @@ export default function DashboardPage() {
   const [showCustomRoute, setShowCustomRoute] = useState(false)
   const [startingTrip, setStartingTrip] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [emergencyOpen, setEmergencyOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(() => new Date())
 
   // Recent trips on homepage
@@ -1078,115 +1076,20 @@ export default function DashboardPage() {
               routeDirection={isAgoraToManolo ? 'agora_to_manolo' : 'manolo_to_agora'}
             />
 
-            {/* Route Direction Switcher Pill on Map */}
-            {!emergencyOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 14,
-                  left: 14,
-                  zIndex: 1000,
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'rgba(15, 17, 23, 0.92)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  border: '1.5px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: 14,
-                  padding: 3,
-                  boxShadow: '0 4px 18px rgba(0, 0, 0, 0.55)',
-                  maxWidth: 'calc(100% - 100px)',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => handleRouteChange('manolo_fortich')}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 11,
-                    border: 'none',
-                    background: !isAgoraToManolo ? 'var(--color-primary-gradient)' : 'transparent',
-                    color: !isAgoraToManolo ? '#ffffff' : 'var(--text-secondary)',
-                    fontSize: '0.72rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                    boxShadow: !isAgoraToManolo ? '0 2px 8px rgba(249, 115, 22, 0.4)' : 'none',
-                  }}
-                >
-                  Manolo → Agora
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRouteChange('agora')}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 11,
-                    border: 'none',
-                    background: isAgoraToManolo ? 'var(--color-primary-gradient)' : 'transparent',
-                    color: isAgoraToManolo ? '#ffffff' : 'var(--text-secondary)',
-                    fontSize: '0.72rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    whiteSpace: 'nowrap',
-                    boxShadow: isAgoraToManolo ? '0 2px 8px rgba(249, 115, 22, 0.4)' : 'none',
-                  }}
-                >
-                  Agora → Manolo
-                </button>
-              </div>
-            )}
-
-            {/* Side Emergency SOS Button */}
-            {!emergencyOpen && (
-              <motion.button
-                type="button"
-                onClick={() => setEmergencyOpen(true)}
-                whileTap={{ scale: 0.92 }}
-                aria-label="Emergency SOS"
-                title="Emergency SOS Alert"
-                style={{
-                  position: 'absolute',
-                  top: 14,
-                  right: 14,
-                  zIndex: 1000,
-                  height: 40,
-                  padding: '0 12px',
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-                  border: '1.5px solid rgba(255, 255, 255, 0.3)',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(239, 68, 68, 0.55)',
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  letterSpacing: '0.04em',
-                  animation: 'emergency-pulse 2s ease-in-out infinite',
-                }}
-              >
-                <span>SOS</span>
-                <AlertTriangle size={18} strokeWidth={2.5} />
-              </motion.button>
-            )}
-
-            {/* Live Turn-by-Turn Guidance Display on Map */}
-            {!emergencyOpen && (
+            {/* Live Turn-by-Turn Guidance Display on Map - only show when trip is active */}
+            {trip.status !== 'completed' && (
               <DashboardTurnByTurnCard
-                currentStep={currentStep}
-                nextStep={nextStep}
-                distanceToNextManeuver={distanceToNextManeuver}
-                currentRoadName={currentRoadName}
-                destinationTitle={destinationTitle}
-                speed={speed}
-                progress={progress}
-                isCalculating={isCalculating}
-                onNavigate={() => navigate('/navigation')}
-              />
+                  currentStep={currentStep}
+                  nextStep={nextStep}
+                  distanceToNextManeuver={distanceToNextManeuver}
+                  currentRoadName={currentRoadName}
+                  destinationTitle={destinationTitle}
+                  routeDirection={effectiveRouteText}
+                  speed={speed}
+                  progress={progress}
+                  isCalculating={isCalculating}
+                  onNavigate={() => navigate('/navigation')}
+                />
             )}
           </SoftCard>
 
@@ -1198,9 +1101,6 @@ export default function DashboardPage() {
           )}
         </motion.div>
       )}
-
-      {/* Emergency Alert Modal */}
-      <EmergencyModal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} />
     </div>
   )
 }

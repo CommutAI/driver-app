@@ -1,21 +1,22 @@
-import { Wifi, WifiOff, Bell, LocateFixed, LocateOff } from 'lucide-react'
+import { Wifi, WifiOff, AlertTriangle, LocateFixed, LocateOff } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth }     from '../../contexts/AuthContext'
-import { useRealtime } from '../../contexts/RealtimeContext'
 import { useActiveTrip } from '../../hooks/useActiveTrip'
 import { useGpsLocation } from '../../hooks/useGpsLocation'
 import { format }      from 'date-fns'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Logo from '../Logo'
+import EmergencyModal from '../emergency/EmergencyModal'
 
 export default function TopBar() {
   const navigate = useNavigate()
   const { user }         = useAuth()
-  const { unreadCount }  = useRealtime()
   const { trip }         = useActiveTrip()
   const { gpsStatus }    = useGpsLocation(trip?.id)
   const [time,   setTime]   = useState(new Date())
   const [online, setOnline] = useState(navigator.onLine)
+  const [emergencyOpen, setEmergencyOpen] = useState(false)
 
   useEffect(() => {
     const tick = setInterval(() => setTime(new Date()), 1000)
@@ -31,6 +32,7 @@ export default function TopBar() {
   }, [])
 
   return (
+    <>
     <header className="page-header">
       <div
         style={{
@@ -87,17 +89,17 @@ export default function TopBar() {
             </div>
           )}
 
-          {/* Notification bell */}
+          {/* Emergency button */}
           <button
             type="button"
-            onClick={() => navigate('/notifications')}
-            aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : 'Notifications'}
+            onClick={() => setEmergencyOpen(true)}
+            aria-label="Emergency"
             style={{
               position: 'relative',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: 'var(--text-secondary)',
+              color: 'var(--color-danger)',
               display: 'flex',
               alignItems: 'center',
               padding: 4,
@@ -105,29 +107,7 @@ export default function TopBar() {
               transition: 'color var(--transition-fast)',
             }}
           >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  top: -2, right: -2,
-                  minWidth: 16, height: 16,
-                  paddingInline: 3,
-                  background: 'var(--color-danger)',
-                  color: '#fff',
-                  fontSize: '0.55rem',
-                  fontWeight: 800,
-                  borderRadius: 99,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  lineHeight: 1,
-                }}
-              >
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
+            <AlertTriangle size={20} />
           </button>
 
           {/* GPS connectivity indicator */}
@@ -171,5 +151,12 @@ export default function TopBar() {
         </div>
       </div>
     </header>
+
+    {/* Emergency Modal - rendered outside header via portal */}
+    {emergencyOpen && createPortal(
+      <EmergencyModal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} />,
+      document.body
+    )}
+  </>
   )
 }
