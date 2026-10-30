@@ -28,6 +28,14 @@ export interface StaffUser {
   is_active: boolean
   bus_id: string | null
   created_at: string
+  employee_id: string | null
+  license_number: string | null
+  license_expiry: string | null
+  emergency_contact: string | null
+  emergency_phone: string | null
+  last_login_at: string | null
+  updated_at: string
+  branch: string | null
 }
 
 // ── Bus ───────────────────────────────────────────────────────
@@ -40,6 +48,8 @@ export interface Bus {
   seat_capacity: number
   status: BusStatus
   created_at: string
+  assigned_driver_id: string | null
+  assigned_conductor_id: string | null
 }
 
 // ── Trip ─────────────────────────────────────────────────────
@@ -105,6 +115,7 @@ export interface EmergencyAlert {
   id: string
   trip_id: string
   conductor_id: string
+  driver_id: string | null
   bus_id: string | null
   lat: number | null
   lng: number | null
@@ -118,6 +129,7 @@ export interface EmergencyAlert {
   location_lng: number | null
   location_source: string | null
   location_accuracy: number | null
+  alert_type: string
 }
 
 // ── Notification ──────────────────────────────────────────────

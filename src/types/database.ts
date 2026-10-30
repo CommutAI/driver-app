@@ -23,6 +23,14 @@ export interface Database {
           is_active: boolean
           bus_id: string | null
           created_at: string
+          employee_id: string | null
+          license_number: string | null
+          license_expiry: string | null
+          emergency_contact: string | null
+          emergency_phone: string | null
+          last_login_at: string | null
+          updated_at: string
+          branch: string | null
         }
         Insert: {
           id: string
@@ -33,6 +41,14 @@ export interface Database {
           is_active?: boolean
           bus_id?: string | null
           created_at?: string
+          employee_id?: string | null
+          license_number?: string | null
+          license_expiry?: string | null
+          emergency_contact?: string | null
+          emergency_phone?: string | null
+          last_login_at?: string | null
+          updated_at?: string
+          branch?: string | null
         }
         Update: {
           full_name?: string
@@ -41,6 +57,14 @@ export interface Database {
           role?: string
           is_active?: boolean
           bus_id?: string | null
+          employee_id?: string | null
+          license_number?: string | null
+          license_expiry?: string | null
+          emergency_contact?: string | null
+          emergency_phone?: string | null
+          last_login_at?: string | null
+          updated_at?: string
+          branch?: string | null
         }
       }
 
@@ -53,6 +77,8 @@ export interface Database {
           seat_capacity: number
           status: string
           created_at: string
+          assigned_driver_id: string | null
+          assigned_conductor_id: string | null
         }
         Insert: {
           id?: string
@@ -62,6 +88,8 @@ export interface Database {
           seat_capacity?: number
           status?: string
           created_at?: string
+          assigned_driver_id?: string | null
+          assigned_conductor_id?: string | null
         }
         Update: {
           plate_number?: string
@@ -69,6 +97,8 @@ export interface Database {
           route?: string
           seat_capacity?: number
           status?: string
+          assigned_driver_id?: string | null
+          assigned_conductor_id?: string | null
         }
       }
 
@@ -77,6 +107,7 @@ export interface Database {
           id: string
           bus_id: string
           conductor_id: string
+          driver_id: string | null
           started_at: string
           ended_at: string | null
           status: string
@@ -87,7 +118,8 @@ export interface Database {
         Insert: {
           id?: string
           bus_id: string
-          conductor_id: string
+          conductor_id: string | null
+          driver_id: string | null
           started_at?: string
           ended_at?: string | null
           status?: string
@@ -185,6 +217,7 @@ export interface Database {
           id: string
           trip_id: string
           conductor_id: string
+          driver_id: string | null
           bus_id: string | null
           lat: number | null
           lng: number | null
@@ -198,11 +231,13 @@ export interface Database {
           location_lng: number | null
           location_source: string | null
           location_accuracy: number | null
+          alert_type: string
         }
         Insert: {
           id?: string
           trip_id: string
           conductor_id: string
+          driver_id?: string | null
           bus_id?: string | null
           lat?: number | null
           lng?: number | null
@@ -214,6 +249,7 @@ export interface Database {
           location_lng?: number | null
           location_source?: string | null
           location_accuracy?: number | null
+          alert_type?: string
         }
         Update: {
           status?: string

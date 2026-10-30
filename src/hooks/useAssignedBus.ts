@@ -36,6 +36,8 @@ export function useAssignedBus(): State {
         seat_capacity: 31,
         status: 'active',
         created_at: new Date().toISOString(),
+        assigned_driver_id: null,
+        assigned_conductor_id: null,
       })
       setLoading(false)
       return

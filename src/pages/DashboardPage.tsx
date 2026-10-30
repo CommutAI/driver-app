@@ -11,6 +11,7 @@ import { format, formatDuration, intervalToDuration } from 'date-fns'
 import { useAuth }        from '../contexts/AuthContext'
 import { useActiveTrip }  from '../hooks/useActiveTrip'
 import { useAssignedBus } from '../hooks/useAssignedBus'
+import { useAssignedConductor } from '../hooks/useAssignedConductor'
 import { useDriverGPS }   from '../hooks/useDriverGPS'
 import { useRouteStops }  from '../hooks/useRouteStops'
 import { useNavigationRoute } from '../hooks/useNavigationRoute'
@@ -68,6 +69,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const { trip, loading: tripLoading, refetch: refetchTrip } = useActiveTrip()
   const { bus } = useAssignedBus()
+  const { conductor } = useAssignedConductor()
 
   // Route selection state (persisted across sessions and navigation)
   const [selectedRoute, setSelectedRoute] = useState<string>(() => {
@@ -151,6 +153,8 @@ export default function DashboardPage() {
               seat_capacity: 31,
               status: 'active',
               created_at: new Date().toISOString(),
+              assigned_driver_id: null,
+              assigned_conductor_id: null,
             },
           },
           {
@@ -174,6 +178,8 @@ export default function DashboardPage() {
               seat_capacity: 31,
               status: 'active',
               created_at: new Date().toISOString(),
+              assigned_driver_id: null,
+              assigned_conductor_id: null,
             },
           },
         ])
@@ -263,7 +269,7 @@ export default function DashboardPage() {
 
     const { error: err } = await (supabase.from('trips') as any).insert({
       bus_id: bus.id,
-      conductor_id: user.id,
+      conductor_id: conductor?.id ?? null,
       driver_id: user.id,
       starting_point: startingPoint,
       end_point: endPoint,
