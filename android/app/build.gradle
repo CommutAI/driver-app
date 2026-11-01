@@ -25,7 +25,11 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "commutai-driver.apk"
+            if (variant.buildType.name == 'release') {
+                outputFileName = "commutai-driver.apk"
+            } else {
+                outputFileName = "app-${variant.buildType.name}.apk"
+            }
         }
     }
 }
