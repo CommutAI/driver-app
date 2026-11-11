@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { LogOut, Bell, AlertTriangle, MapPin, Shield } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { LogOut, Bell, AlertTriangle, MapPin, Shield, ChevronDown, ChevronUp, Lock, FileText, UserCheck } from 'lucide-react'
 
 import { useAuth }        from '../contexts/AuthContext'
 import { useAssignedBus } from '../hooks/useAssignedBus'
@@ -19,6 +19,9 @@ export default function ProfilePage() {
   const [showLogout,    setShowLogout]    = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
   const [showEmergency, setShowEmergency] = useState(false)
+  const [privacyOpen,   setPrivacyOpen]   = useState(false)
+  const [roleOpen,      setRoleOpen]      = useState(false)
+  const [policyOpen,    setPolicyOpen]    = useState(false)
 
   const initials = user?.full_name
     ?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() ?? '?'
@@ -171,6 +174,152 @@ export default function ProfilePage() {
         </motion.button>
       </SoftCard>
 
+      {/* ── Data Privacy, Role & Policy ── */}
+      {[
+        {
+          key: 'privacy',
+          open: privacyOpen,
+          toggle: () => setPrivacyOpen(o => !o),
+          icon: Lock,
+          iconColor: '#60A5FA',
+          iconBg: 'rgba(59,130,246,0.15)',
+          title: 'Data Privacy',
+          subtitle: 'How your personal data is collected and used',
+          content: (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <p style={{ margin: 0 }}>
+                CommutAI collects and processes your personal information — including name, email, phone number, GPS location, and trip activity — solely for the purpose of operating the driver portal and ensuring safe transit operations.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Data collected:</strong> Account details, real-time GPS coordinates during active trips, trip history, passenger counts, and incident reports.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Data retention:</strong> Trip and location data is retained for operational auditing and may be accessed by authorized administrators. Personal data is never sold to third parties.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Your rights:</strong> You may request a copy or deletion of your personal data by contacting your System Administrator.
+              </p>
+            </div>
+          ),
+        },
+        {
+          key: 'role',
+          open: roleOpen,
+          toggle: () => setRoleOpen(o => !o),
+          icon: UserCheck,
+          iconColor: '#4ADE80',
+          iconBg: 'rgba(74,222,128,0.15)',
+          title: 'Role & Permissions',
+          subtitle: `Your assigned role: ${roleLabel}`,
+          content: (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(74,222,128,0.07)',
+                border: '1px solid rgba(74,222,128,0.2)',
+              }}>
+                <UserCheck size={16} color="#4ADE80" />
+                <span style={{ fontWeight: 700, color: '#4ADE80', fontSize: '0.88rem' }}>{roleLabel}</span>
+              </div>
+              <p style={{ margin: 0 }}>As a <strong style={{ color: 'var(--text-primary)' }}>Driver</strong>, you have access to:</p>
+              {[
+                'View and manage your active trip',
+                'Real-time GPS navigation',
+                'Passenger occupancy monitoring',
+                'Incident reporting',
+                'Trip history and journey logs',
+                'Emergency alert dispatch',
+                'Announcements and notifications',
+              ].map(item => (
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#F97316', flexShrink: 0 }} />
+                  <span>{item}</span>
+                </div>
+              ))}
+              <p style={{ margin: 0, marginTop: 4 }}>
+                Role changes must be requested through your System Administrator. You cannot modify your own role or permissions.
+              </p>
+            </div>
+          ),
+        },
+        {
+          key: 'policy',
+          open: policyOpen,
+          toggle: () => setPolicyOpen(o => !o),
+          icon: FileText,
+          iconColor: '#F97316',
+          iconBg: 'rgba(249,115,22,0.15)',
+          title: 'Terms & Usage Policy',
+          subtitle: 'Acceptable use and conduct guidelines',
+          content: (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <p style={{ margin: 0 }}>
+                By using the CommutAI Driver Portal, you agree to the following terms:
+              </p>
+              {[
+                'Use this application only during authorized working hours and assigned duties.',
+                'Do not share your login credentials with any other person.',
+                'All GPS tracking and trip data is logged and monitored for safety compliance.',
+                'Falsifying trip data, passenger counts, or incident reports is strictly prohibited.',
+                'The Emergency Alert feature is for genuine emergencies only. Misuse will be subject to disciplinary action.',
+                'You are responsible for ensuring your device is charged and functional before starting a trip.',
+                'Report any technical issues to your supervisor or System Administrator promptly.',
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10 }}>
+                  <span style={{ color: '#F97316', fontWeight: 800, flexShrink: 0, fontSize: '0.78rem', marginTop: 2 }}>{i + 1}.</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+              <p style={{ margin: 0, marginTop: 4, fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                Violations of this policy may result in suspension or termination of system access. For questions, contact your System Administrator.
+              </p>
+            </div>
+          ),
+        },
+      ].map(({ key, open, toggle, icon: Icon, iconColor, iconBg, title, subtitle, content }) => (
+        <SoftCard key={key} padding={0}>
+          <button
+            type="button"
+            onClick={toggle}
+            style={{
+              width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+              padding: '16px 20px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={18} color={iconColor} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>{title}</p>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{subtitle}</p>
+              </div>
+            </div>
+            <div style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
+              {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22 }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ paddingTop: 14 }}>{content}</div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </SoftCard>
+      ))}
+
       {/* ── Sign out ── */}
       <motion.button
         type="button"
@@ -184,7 +333,7 @@ export default function ProfilePage() {
       </motion.button>
 
       <p style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--text-tertiary)', paddingBottom: 8 }}>
-        Role and permissions are managed by the System Administrator.
+        CommutAI Driver Portal · Role and permissions managed by System Administrator.
       </p>
 
       <ConfirmModal

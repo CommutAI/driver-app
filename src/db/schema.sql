@@ -32,6 +32,7 @@ CREATE TYPE sms_type AS ENUM ('emergency', 'card_reserved', 'card_approved', 'ca
 
 -- ── staff_users ─────────────────────────────────────────────────────────────────
 -- Driver/conductor profile and bus assignment
+-- Password is stored as bcrypt hash for custom authentication
 CREATE TABLE staff_users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email TEXT UNIQUE NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE staff_users (
   role staff_role NOT NULL DEFAULT 'driver',
   bus_id UUID REFERENCES buses(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
+  password TEXT, -- bcrypt hash for custom authentication
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

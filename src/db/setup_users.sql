@@ -11,6 +11,7 @@ ON CONFLICT (plate_number) DO UPDATE SET
   assigned_conductor_id = EXCLUDED.assigned_conductor_id;
 
 -- Insert driver into staff_users (if not exists)
+-- NOTE: Password is handled by Supabase Auth, NOT stored here
 INSERT INTO staff_users (id, email, full_name, phone, role, bus_id, is_active)
 VALUES (
   'aabfd23e-6721-4840-a3ad-4a649efd8f55',
@@ -28,6 +29,7 @@ ON CONFLICT (id) DO UPDATE SET
   is_active = true;
 
 -- Insert conductor into staff_users (if not exists)
+-- NOTE: Password is handled by Supabase Auth, NOT stored here
 INSERT INTO staff_users (id, email, full_name, phone, role, bus_id, is_active)
 VALUES (
   'cd008646-8abe-43aa-b1ad-9707070a5377',
