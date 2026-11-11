@@ -120,7 +120,13 @@ export default function DriverNavigationPage() {
     return isAgoraToManolo ? 'Agora Terminal, CDO' : 'Manolo Fortich Terminal'
   }, [isAgoraToManolo])
 
-  // Current GPS coordinates or fallback origin
+  // Origin for route calculation - use terminal coordinates like web version does
+  // This ensures the route line follows the actual road path (terminal to terminal)
+  const routeOrigin = useMemo<Coordinates>(() => {
+    return isAgoraToManolo ? DEFAULT_DESTINATION : DEFAULT_ORIGIN
+  }, [isAgoraToManolo])
+
+  // Current GPS coordinates for bus marker and progress tracking
   const currentCoords = useMemo<Coordinates | null>(() => {
     if (location && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
       return { latitude: Number(location.latitude), longitude: Number(location.longitude) }
@@ -128,13 +134,13 @@ export default function DriverNavigationPage() {
     return null
   }, [location])
 
-  // Routing engine hook
+  // Routing engine hook - use terminal-to-terminal route like web version
   const {
     route,
     isCalculating,
     isRecalculating,
     recalculateRoute,
-  } = useNavigationRoute(currentCoords || DEFAULT_ORIGIN, destination)
+  } = useNavigationRoute(routeOrigin, destination)
 
   // Progress & turn-by-turn guidance hook
   const {

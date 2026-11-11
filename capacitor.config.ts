@@ -4,10 +4,11 @@ const config: CapacitorConfig = {
   appId: 'com.driver.app',
   appName: 'Driver App',
   webDir: 'dist',
-  bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
-    cleartext: true
+    cleartext: true,
+    // Allow OSRM API domain
+    allowNavigation: ['*']
   },
   android: {
     webContentsDebuggingEnabled: true
