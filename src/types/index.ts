@@ -27,6 +27,7 @@ export interface StaffUser {
   role: StaffRole
   is_active: boolean
   bus_id: string | null
+  password?: string | null // bcrypt hash for custom authentication
   created_at: string
   employee_id: string | null
   license_number: string | null

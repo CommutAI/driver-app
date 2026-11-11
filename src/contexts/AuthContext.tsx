@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useState,
 } from 'react'
-import type { Session, User as SupabaseUser } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
 import { supabase } from '../lib/supabase'
 import type { StaffUser } from '../types'
 
@@ -14,8 +14,6 @@ import type { StaffUser } from '../types'
 // ─────────────────────────────────────────────────────────────
 
 interface AuthContextValue {
-  session: Session | null
-  supabaseUser: SupabaseUser | null
   /** The authenticated staff_users row */
   user: StaffUser | null
   loading: boolean
@@ -36,93 +34,102 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 // ─────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session,      setSession]      = useState<Session | null>(null)
-  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null)
   const [user,         setUser]         = useState<StaffUser | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState<string | null>(null)
 
-  // ── Fetch profile from staff_users ───────────────────────
+  // ── Fetch profile from staff_users by email ─────────────────
 
-  const fetchProfile = useCallback(async (uid: string) => {
+  const fetchProfileByEmail = useCallback(async (email: string) => {
     const { data, error: err } = await (supabase
       .from('staff_users') as any)
       .select('*')
-      .eq('id', uid)
+      .eq('email', email.trim().toLowerCase())
       .maybeSingle() as { data: StaffUser | null; error: unknown }
 
     if (err || !data) {
-      setError('Could not load your profile. Contact your administrator.')
-      return
+      setError('Invalid email or password')
+      return null
     }
 
     if (!data.is_active) {
       setError('Your account is inactive. Contact your administrator.')
-      await supabase.auth.signOut()
-      return
+      return null
     }
 
     // Only drivers can access the driver app
     if (data.role !== 'driver') {
       setError('Access denied. Only drivers can access this application.')
-      await supabase.auth.signOut()
-      return
+      return null
     }
 
-    setUser(data)
-    setError(null)
+    return data
   }, [])
 
   const refreshProfile = useCallback(async () => {
-    if (supabaseUser) await fetchProfile(supabaseUser.id)
-  }, [supabaseUser, fetchProfile])
+    if (user) {
+      const refreshed = await fetchProfileByEmail(user.email)
+      if (refreshed) setUser(refreshed)
+    }
+  }, [user, fetchProfileByEmail])
 
-  // ── Bootstrap session on mount ────────────────────────────
+  // ── Check for existing session on mount ───────────────────
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      setSession(s)
-      setSupabaseUser(s?.user ?? null)
-      if (s?.user) await fetchProfile(s.user.id)
-      setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
-        setSession(s)
-        setSupabaseUser(s?.user ?? null)
-        if (s?.user) {
-          await fetchProfile(s.user.id)
-        } else {
-          setUser(null)
-        }
+    const savedUser = localStorage.getItem('driver_app_user')
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser)
+        // Verify user is still active in database
+        fetchProfileByEmail(parsedUser.email).then((profile) => {
+          if (profile) {
+            setUser(profile)
+          } else {
+            localStorage.removeItem('driver_app_user')
+          }
+          setLoading(false)
+        })
+      } catch {
+        localStorage.removeItem('driver_app_user')
         setLoading(false)
       }
-    )
+    } else {
+      setLoading(false)
+    }
+  }, [fetchProfileByEmail])
 
-    return () => subscription.unsubscribe()
-  }, [fetchProfile])
-
-  // ── Sign in ───────────────────────────────────────────────
+  // ── Sign in with custom bcrypt authentication ─────────────
 
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true)
     setError(null)
 
-    const { data, error: signInErr } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    })
-
-    if (signInErr) {
-      setError(signInErr.message)
+    const profile = await fetchProfileByEmail(email)
+    if (!profile) {
       setLoading(false)
       return
     }
 
-    if (data.user) await fetchProfile(data.user.id)
+    // Verify password using bcrypt
+    if (!profile.password) {
+      setError('Account not properly configured. Contact administrator.')
+      setLoading(false)
+      return
+    }
+
+    const passwordMatch = await bcrypt.compare(password, profile.password)
+    if (!passwordMatch) {
+      setError('Invalid email or password')
+      setLoading(false)
+      return
+    }
+
+    // Success - save to state and localStorage
+    setUser(profile)
+    localStorage.setItem('driver_app_user', JSON.stringify(profile))
+    setError(null)
     setLoading(false)
-  }, [fetchProfile])
+  }, [fetchProfileByEmail])
 
   // ── Sign out ──────────────────────────────────────────────
 
@@ -135,17 +142,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .catch(() => {/* silent */})
     }
 
-    await supabase.auth.signOut()
-    setSession(null)
-    setSupabaseUser(null)
     setUser(null)
+    localStorage.removeItem('driver_app_user')
     setError(null)
   }, [user])
 
   // ─────────────────────────────────────────────────────────
 
   const value: AuthContextValue = {
-    session, supabaseUser, user,
+    user,
     loading, error,
     signIn, signOut, refreshProfile,
   }

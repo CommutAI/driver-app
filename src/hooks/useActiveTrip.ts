@@ -65,7 +65,7 @@ export function useActiveTrip(): State {
       .from('trips') as any)
       .select(`
         *,
-        bus:buses(*),
+        bus:buses!trips_bus_id_fkey(*),
         conductor:staff_users!trips_conductor_id_fkey(*)
       `)
       .or(`conductor_id.eq.${user.id},driver_id.eq.${user.id}`)
@@ -75,8 +75,10 @@ export function useActiveTrip(): State {
       .maybeSingle() as { data: Trip | null; error: unknown }
 
     if (err) {
+      console.error('useActiveTrip error:', err)
       setError((err as any).message ?? 'Failed to load trip')
     } else {
+      console.log('useActiveTrip data:', data, 'user.id:', user.id)
       setTrip(data)
     }
     setLoading(false)

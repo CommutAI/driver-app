@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -234,18 +235,9 @@ export default function TripPage() {
   const occupancyPct = Math.min(100, Math.round((currentPax / busCapacity) * 100))
   const seatsAvailable = Math.max(0, busCapacity - currentPax)
 
-  // Early return if no trip - show empty state
+  // Early return if no trip — redirect to dashboard
   if (!trip) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', textAlign: 'center' }}
-      >
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No active trip. Start a trip from the dashboard.</p>
-      </motion.div>
-    )
+    return <Navigate to="/" replace />
   }
 
   return (

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Radio,
   StopCircle,
+  Loader2,
 } from 'lucide-react'
 import type { GpsStatus, RouteProgress, Trip } from '../../types'
 import { formatDuration, formatManeuverDistance } from '../../utils/geoUtils'
@@ -26,6 +27,7 @@ interface Props {
   accuracy?: number | null
   network: NetworkStatus
   onEndTrip?: () => void
+  endingTrip?: boolean
 }
 
 export default function TripInfoPanel({
@@ -41,6 +43,7 @@ export default function TripInfoPanel({
   accuracy,
   network,
   onEndTrip,
+  endingTrip = false,
 }: Props) {
   const [expanded, setExpanded] = useState<boolean>(false)
 
@@ -213,6 +216,47 @@ export default function TripInfoPanel({
         </div>
       </div>
 
+      {/* ── End Trip Button (Always Visible) ── */}
+      {onEndTrip && (
+        <motion.button
+          type="button"
+          onClick={onEndTrip}
+          disabled={endingTrip}
+          whileHover={{ scale: endingTrip ? 1 : 1.01 }}
+          whileTap={{ scale: endingTrip ? 1 : 0.98 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            width: '100%',
+            padding: '12px 16px',
+            marginTop: 12,
+            background: endingTrip ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.15)',
+            border: '1.5px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 14,
+            color: '#F87171',
+            fontSize: '0.9rem',
+            fontWeight: 800,
+            cursor: endingTrip ? 'not-allowed' : 'pointer',
+            opacity: endingTrip ? 0.7 : 1,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {endingTrip ? (
+            <>
+              <Loader2 size={18} style={{ animation: 'spin 0.8s linear infinite' }} />
+              <span>Ending Trip...</span>
+            </>
+          ) : (
+            <>
+              <StopCircle size={18} />
+              <span>Complete / End Trip</span>
+            </>
+          )}
+        </motion.button>
+      )}
+
       {/* ── Collapsible Drawer Details ── */}
       <AnimatePresence>
         {expanded && (
@@ -285,33 +329,6 @@ export default function TripInfoPanel({
                   </div>
                 </div>
               </div>
-
-              {/* Action Button */}
-              {onEndTrip && (
-                <button
-                  type="button"
-                  onClick={onEndTrip}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    width: '100%',
-                    padding: '12px 16px',
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: 14,
-                    color: '#F87171',
-                    fontSize: '0.9rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    marginTop: 4,
-                  }}
-                >
-                  <StopCircle size={18} />
-                  <span>Complete / End Trip</span>
-                </button>
-              )}
             </div>
           </motion.div>
         )}

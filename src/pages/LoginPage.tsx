@@ -9,13 +9,13 @@ import ModernInput   from '../components/ui/ModernInput'
 import PrimaryButton from '../components/ui/PrimaryButton'
 
 export default function LoginPage() {
-  const { signIn, session, loading, error } = useAuth()
+  const { signIn, user, loading, error } = useAuth()
 
   const [email,      setEmail]      = useState('')
   const [password,   setPassword]   = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (session && !loading) return <Navigate to="/" replace />
+  if (user && !loading) return <Navigate to="/" replace />
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

@@ -10,6 +10,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 
+import { useAuth } from '../contexts/AuthContext'
 import { useActiveTrip } from '../hooks/useActiveTrip'
 import { useAssignedBus } from '../hooks/useAssignedBus'
 import { useOccupancy } from '../hooks/useOccupancy'
@@ -18,6 +19,7 @@ import { useNavigationRoute } from '../hooks/useNavigationRoute'
 import { useRouteProgress } from '../hooks/useRouteProgress'
 import { useNetworkStatus } from '../hooks/useNetworkStatus'
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '../services/routingService'
+import { supabase } from '../lib/supabase'
 import type { Coordinates } from '../types'
 
 import NavigationMap from '../components/navigation/NavigationMap'
@@ -29,7 +31,8 @@ import EmergencyModal from '../components/emergency/EmergencyModal'
 
 export default function DriverNavigationPage() {
   const navigate = useNavigate()
-  const { trip } = useActiveTrip()
+  const { user } = useAuth()
+  const { trip, refetch: refetchTrip } = useActiveTrip()
   const { bus } = useAssignedBus()
 
   // Live GPS hook (Hardware Geolocation + Supabase Realtime)
@@ -50,6 +53,44 @@ export default function DriverNavigationPage() {
 
   // Emergency modal state
   const [emergencyOpen, setEmergencyOpen] = useState<boolean>(false)
+  const [endingTrip, setEndingTrip] = useState<boolean>(false)
+
+  // End trip handler
+  const handleEndTrip = async () => {
+    if (!trip || !user) return
+    setEndingTrip(true)
+
+    const timestamp = new Date().toISOString()
+    const { error: err } = await (supabase.from('trips') as any)
+      .update({
+        status: 'completed',
+        ended_at: timestamp,
+        current_lat: location?.latitude ?? null,
+        current_lng: location?.longitude ?? null,
+        gps_updated_at: location ? timestamp : null,
+      })
+      .eq('id', trip.id)
+
+    if (err) {
+      console.error('Failed to end trip:', err)
+      alert(`Failed to end trip: ${(err as any).message}`)
+    } else {
+      // Log audit
+      try {
+        await (supabase.from('audit_logs') as any)
+          .insert({
+            username: user.email,
+            action: 'UPDATE',
+            module: 'driver_app_trip',
+            details: `Trip ended from navigation: ${trip.id}`,
+          })
+      } catch { /* silent */ }
+
+      refetchTrip()
+      navigate('/')
+    }
+    setEndingTrip(false)
+  }
 
   // Route direction state (synced with localStorage and trip)
   const [selectedRoute, setSelectedRoute] = useState<string>(() => {
@@ -337,7 +378,8 @@ export default function DriverNavigationPage() {
         gpsStatus={gpsStatus}
         accuracy={accuracy}
         network={network}
-        onEndTrip={trip ? () => navigate('/trip') : undefined}
+        onEndTrip={trip ? handleEndTrip : undefined}
+        endingTrip={endingTrip}
       />
     </div>
 

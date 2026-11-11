@@ -5,7 +5,7 @@ import InteractiveBackground from './InteractiveBackground'
 import Logo from '../Logo'
 
 export default function ProtectedRoute() {
-  const { session, loading, user } = useAuth()
+  const { loading, user } = useAuth()
 
   if (loading) {
     return (
@@ -35,7 +35,7 @@ export default function ProtectedRoute() {
     )
   }
 
-  if (!session || !user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace />
   // Only drivers can use the driver app
   if (!user.is_active) return <Navigate to="/login" replace />
   if (user.role !== 'driver') return <Navigate to="/login" replace />

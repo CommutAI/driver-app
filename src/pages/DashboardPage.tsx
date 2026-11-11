@@ -189,7 +189,7 @@ export default function DashboardPage() {
 
       const { data } = await (supabase
         .from('trips') as any)
-        .select('*, bus:buses(*)')
+        .select('*, bus:buses!trips_bus_id_fkey(*)')
         .or(`conductor_id.eq.${user.id},driver_id.eq.${user.id}`)
         .in('status', ['completed', 'cancelled'])
         .order('started_at', { ascending: false })
