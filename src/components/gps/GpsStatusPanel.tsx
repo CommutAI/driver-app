@@ -75,8 +75,8 @@ export default function GpsStatusPanel({ location, gpsStatus, lastUpdate, isShar
       {onToggleSharing && (
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>Broadcast Phone GPS</p>
-            <p style={{ margin: '2px 0 0', fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>Send device coordinates to Admin & Live Map</p>
+            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>Broadcast Phone GPS to Dispatch & Map</p>
+            <p style={{ margin: '2px 0 0', fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>Send real-time phone coordinates to Dispatch, Live Map & Onboard Pi</p>
           </div>
           <button
             onClick={() => onToggleSharing(!isSharingGps)}

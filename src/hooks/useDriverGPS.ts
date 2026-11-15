@@ -53,8 +53,11 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
     inAccuracy: number | null
   ) => {
     if (!isSharingGps) return
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) return
+    if (inAccuracy != null && inAccuracy > 150) return // Skip inaccurate fixes
+
     const now = Date.now()
-    // Throttle uploads to every 4 seconds or when moved > 8 meters
+    // Throttle updates to at most once every 4 seconds or when moving > 8 meters
     const timeSinceLast = now - lastUploadTimeRef.current
     if (timeSinceLast < 4000) {
       if (lastUploadPosRef.current) {
@@ -84,7 +87,7 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
         recorded_at: new Date(now).toISOString()
       })
 
-      // 2. If active trip, update trip's current_lat and current_lng
+      // 2. If active trip, update trip's current_lat, current_lng, and last location timestamp (gps_updated_at)
       if (tripId) {
         await (supabase.from('trips') as any).update({
           current_lat: lat,
@@ -93,22 +96,33 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
         }).eq('id', tripId)
       }
 
-      // 3. Sync to onboard Raspberry Pi if reachable
+      // 3. Send background POST requests to onboard Raspberry Pi
+      const piEndpoints = [
+        'http://192.168.1.54:8080/set-location',
+        'http://localhost:8080/set-location',
+      ]
       if (FASTAPI_URL) {
-        try {
-          const piSetUrl = FASTAPI_URL.replace('/location', '/set-location')
-          fetch(piSetUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              latitude: lat,
-              longitude: lng,
-              source: 'driver_phone_gps'
-            }),
-            signal: AbortSignal.timeout(1500)
-          }).catch(() => {})
-        } catch {}
+        const customUrl = FASTAPI_URL.replace('/location', '/set-location')
+        if (!piEndpoints.includes(customUrl)) {
+          piEndpoints.push(customUrl)
+        }
       }
+
+      const payload = JSON.stringify({
+        latitude: lat,
+        longitude: lng,
+        speed: inSpeed,
+        source: 'driver_phone_gps'
+      })
+
+      piEndpoints.forEach((url) => {
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          signal: AbortSignal.timeout(1500)
+        }).catch(() => {})
+      })
     } catch (err) {
       console.warn('[Driver GPS Upload Error]:', err)
     }

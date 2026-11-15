@@ -69,6 +69,7 @@ export default function TripPage() {
     gpsStatus,
     source,
     isSharingGps,
+    setIsSharingGps,
     refetch: refetchGps,
   } = useDriverGPS(trip?.id)
 
@@ -655,15 +656,36 @@ export default function TripPage() {
                       : 'Offline'}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: isSharingGps && gpsStatus === 'connected' ? '#10B981' : 'var(--text-tertiary)', marginTop: 2 }}>
-                  {isSharingGps && gpsStatus === 'connected'
-                    ? '📡 Broadcasting Live GPS'
-                    : source === 'device'
-                    ? 'Device Hardware GPS'
-                    : source === 'fastapi'
-                    ? 'FastAPI Gateway'
-                    : 'Realtime Cloud'}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSharingGps(!isSharingGps)}
+                  title={`Click to toggle Phone GPS broadcasting (source: ${source})`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: '0.7rem',
+                    color: isSharingGps && gpsStatus === 'connected' ? '#10B981' : 'var(--text-tertiary)',
+                    marginTop: 4,
+                    background: isSharingGps ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                    border: `1px solid ${isSharingGps ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                    borderRadius: 6,
+                    padding: '2px 7px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>
+                    {isSharingGps && gpsStatus === 'connected'
+                      ? '📡 Broadcasting'
+                      : isSharingGps
+                      ? '📡 Broadcast On'
+                      : 'Broadcast Paused'}
+                  </span>
+                  <span style={{ fontSize: '0.62rem', opacity: 0.8 }}>
+                    {isSharingGps ? '● Live' : '○ Off'}
+                  </span>
+                </button>
               </div>
             </div>
 
