@@ -12,6 +12,7 @@ interface Props {
   gpsStatus: GpsStatus
   lastUpdate: Date | null
   loading: boolean
+  isSharingGps?: boolean
 }
 
 function gpsVariant(s: GpsStatus): 'success' | 'warning' | 'danger' {
@@ -26,7 +27,7 @@ function gpsLabel(s: GpsStatus) {
   return 'Offline'
 }
 
-export default function GpsCard({ location, gpsStatus, lastUpdate, loading }: Props) {
+export default function GpsCard({ location, gpsStatus, lastUpdate, loading, isSharingGps = true }: Props) {
   const navigate = useNavigate()
 
   const cardVariant = gpsStatus === 'disconnected' ? 'accent-danger' : gpsStatus === 'poor' ? 'accent-warning' : 'default'
@@ -50,9 +51,18 @@ export default function GpsCard({ location, gpsStatus, lastUpdate, loading }: Pr
               </p>
               {loading
                 ? <SkeletonLine width="110px" height={14} />
-                : <p style={{ margin: '2px 0 0', fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    {gpsStatus === 'connected' ? 'GPS Connected' : gpsStatus === 'poor' ? 'Weak Signal' : 'GPS Offline'}
-                  </p>}
+                : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {gpsStatus === 'connected' ? 'GPS Connected' : gpsStatus === 'poor' ? 'Weak Signal' : 'GPS Offline'}
+                    </p>
+                    {isSharingGps && (
+                      <span style={{ fontSize: '0.62rem', background: 'rgba(59, 130, 246, 0.18)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.35)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                        SHARING
+                      </span>
+                    )}
+                  </div>
+                )}
             </div>
             {!loading && <StatusBadge variant={gpsVariant(gpsStatus)}>{gpsLabel(gpsStatus)}</StatusBadge>}
             <ChevronRight size={16} color="var(--text-tertiary)" />

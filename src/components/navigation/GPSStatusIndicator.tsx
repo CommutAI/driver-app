@@ -4,16 +4,20 @@ import type { GpsStatus } from '../../types'
 interface Props {
   status: GpsStatus
   accuracy?: number | null
+  isSharing?: boolean
   style?: CSSProperties
+  onClick?: () => void
 }
 
-export default function GPSStatusIndicator({ status, accuracy, style }: Props) {
+export default function GPSStatusIndicator({ status, accuracy, isSharing = true, style, onClick }: Props) {
   const isConnected = status === 'connected'
   const isWeak = status === 'poor'
 
   const dotColor = isConnected ? '#22C55E' : isWeak ? '#FACC15' : '#EF4444'
   const label = isConnected
-    ? accuracy != null ? `GPS ±${Math.round(accuracy)}m` : 'GPS Live'
+    ? isSharing
+      ? accuracy != null ? `📡 Sharing ±${Math.round(accuracy)}m` : '📡 Sharing GPS'
+      : accuracy != null ? `GPS ±${Math.round(accuracy)}m` : 'GPS Live'
     : isWeak
     ? 'GPS Weak'
     : 'GPS Offline'
@@ -21,6 +25,8 @@ export default function GPSStatusIndicator({ status, accuracy, style }: Props) {
   return (
     <div
       role="status"
+      onClick={onClick}
+      title={onClick ? "Click to toggle Phone GPS broadcasting" : undefined}
       aria-label={`GPS Status: ${label}`}
       style={{
         display: 'inline-flex',
@@ -36,6 +42,7 @@ export default function GPSStatusIndicator({ status, accuracy, style }: Props) {
         fontSize: '0.72rem',
         fontWeight: 700,
         letterSpacing: '0.02em',
+        cursor: onClick ? 'pointer' : 'default',
         ...style,
       }}
     >

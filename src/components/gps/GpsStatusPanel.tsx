@@ -4,9 +4,16 @@ import SoftCard    from '../ui/SoftCard'
 import StatusBadge from '../ui/StatusBadge'
 import type { GpsLocation, GpsStatus } from '../../types'
 
-interface Props { location: GpsLocation | null; gpsStatus: GpsStatus; lastUpdate: Date | null; loading?: boolean }
+interface Props {
+  location: GpsLocation | null
+  gpsStatus: GpsStatus
+  lastUpdate: Date | null
+  loading?: boolean
+  isSharingGps?: boolean
+  onToggleSharing?: (val: boolean) => void
+}
 
-export default function GpsStatusPanel({ location, gpsStatus, lastUpdate }: Props) {
+export default function GpsStatusPanel({ location, gpsStatus, lastUpdate, isSharingGps = true, onToggleSharing }: Props) {
   const variant = gpsStatus === 'connected' ? 'success' : gpsStatus === 'poor' ? 'warning' : 'danger'
 
   return (
@@ -65,8 +72,32 @@ export default function GpsStatusPanel({ location, gpsStatus, lastUpdate }: Prop
         </div>
       )}
 
+      {onToggleSharing && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>Broadcast Phone GPS</p>
+            <p style={{ margin: '2px 0 0', fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>Send device coordinates to Admin & Live Map</p>
+          </div>
+          <button
+            onClick={() => onToggleSharing(!isSharingGps)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              border: isSharingGps ? '1px solid #10B981' : '1px solid rgba(255,255,255,0.2)',
+              background: isSharingGps ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+              color: isSharingGps ? '#10B981' : 'var(--text-secondary)',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            {isSharingGps ? '📡 Sharing ON' : 'Off'}
+          </button>
+        </div>
+      )}
+
       <p style={{ margin: '12px 0 0', fontSize: '0.68rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>
-        GPS data is provided by the Raspberry Pi on-board system · Read only
+        GPS data synchronizes automatically with CommutAI Fleet Admin & Live Map
       </p>
     </SoftCard>
   )

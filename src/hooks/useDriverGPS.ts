@@ -12,6 +12,8 @@ export interface DriverGpsState {
   gpsStatus: GpsStatus
   lastUpdate: Date | null
   source: 'fastapi' | 'supabase' | 'device' | 'none'
+  isSharingGps: boolean
+  setIsSharingGps: (val: boolean) => void
   refetch: () => void
 }
 
@@ -27,6 +29,90 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('disconnected')
   const [activeSource, setActiveSource] = useState<'fastapi' | 'supabase' | 'device' | 'none'>('none')
+
+  // Driver phone GPS sharing toggle (defaults to true)
+  const [isSharingGps, setIsSharingGpsState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('driver_share_gps')
+    return saved !== null ? saved === 'true' : true
+  })
+
+  const setIsSharingGps = useCallback((val: boolean) => {
+    setIsSharingGpsState(val)
+    localStorage.setItem('driver_share_gps', String(val))
+  }, [])
+
+  const lastUploadTimeRef = useRef<number>(0)
+  const lastUploadPosRef = useRef<{ lat: number; lng: number } | null>(null)
+
+  // Upload helper to push driver phone coordinates to Supabase & onboard Pi
+  const uploadDriverLocation = useCallback(async (
+    lat: number,
+    lng: number,
+    inSpeed: number,
+    inHeading: number,
+    inAccuracy: number | null
+  ) => {
+    if (!isSharingGps) return
+    const now = Date.now()
+    // Throttle uploads to every 4 seconds or when moved > 8 meters
+    const timeSinceLast = now - lastUploadTimeRef.current
+    if (timeSinceLast < 4000) {
+      if (lastUploadPosRef.current) {
+        const moved = haversineDistance(
+          [lastUploadPosRef.current.lat, lastUploadPosRef.current.lng],
+          [lat, lng]
+        )
+        if (moved < 8) return
+      } else {
+        return
+      }
+    }
+
+    lastUploadTimeRef.current = now
+    lastUploadPosRef.current = { lat, lng }
+
+    try {
+      // 1. Insert into gps_locations
+      await (supabase.from('gps_locations') as any).insert({
+        latitude: lat,
+        longitude: lng,
+        speed: inSpeed,
+        heading: inHeading,
+        accuracy: inAccuracy ?? 5,
+        source: 'driver_phone_gps',
+        trip_id: tripId ?? null,
+        recorded_at: new Date(now).toISOString()
+      })
+
+      // 2. If active trip, update trip's current_lat and current_lng
+      if (tripId) {
+        await (supabase.from('trips') as any).update({
+          current_lat: lat,
+          current_lng: lng,
+          gps_updated_at: new Date(now).toISOString()
+        }).eq('id', tripId)
+      }
+
+      // 3. Sync to onboard Raspberry Pi if reachable
+      if (FASTAPI_URL) {
+        try {
+          const piSetUrl = FASTAPI_URL.replace('/location', '/set-location')
+          fetch(piSetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: lat,
+              longitude: lng,
+              source: 'driver_phone_gps'
+            }),
+            signal: AbortSignal.timeout(1500)
+          }).catch(() => {})
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('[Driver GPS Upload Error]:', err)
+    }
+  }, [isSharingGps, tripId])
 
   // Previous position ref for heading / speed calculation
   const prevPositionRef = useRef<{ lat: number; lng: number; time: number } | null>(null)
@@ -98,7 +184,12 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
     setLastUpdate(new Date(now))
     setActiveSource(sourceName)
     setGpsStatus('connected')
-  }, [heading, tripId])
+
+    // Automatically broadcast driver phone GPS to Supabase fleet system
+    if (sourceName === 'device') {
+      uploadDriverLocation(lat, lng, Number(resolvedSpeed.toFixed(1)), Math.round(resolvedHeading), inAccuracy ?? null)
+    }
+  }, [heading, tripId, uploadDriverLocation])
 
   // ── Source 1: Device Hardware GPS (Continuous Watch & Immediate Fix) ──
   useEffect(() => {
@@ -287,6 +378,8 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
     gpsStatus,
     lastUpdate,
     source: activeSource,
+    isSharingGps,
+    setIsSharingGps,
     refetch: fetchGps,
   }
 }

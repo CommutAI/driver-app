@@ -68,6 +68,7 @@ export default function TripPage() {
     accuracy,
     gpsStatus,
     source,
+    isSharingGps,
     refetch: refetchGps,
   } = useDriverGPS(trip?.id)
 
@@ -654,8 +655,10 @@ export default function TripPage() {
                       : 'Offline'}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: 2 }}>
-                  {source === 'device'
+                <div style={{ fontSize: '0.7rem', color: isSharingGps && gpsStatus === 'connected' ? '#10B981' : 'var(--text-tertiary)', marginTop: 2 }}>
+                  {isSharingGps && gpsStatus === 'connected'
+                    ? '📡 Broadcasting Live GPS'
+                    : source === 'device'
                     ? 'Device Hardware GPS'
                     : source === 'fastapi'
                     ? 'FastAPI Gateway'

@@ -12,6 +12,7 @@ import SoftCard       from '../components/ui/SoftCard'
 import RouteMap       from '../components/route/RouteMap'
 import StopList       from '../components/route/StopList'
 import GpsStatusPanel from '../components/gps/GpsStatusPanel'
+import { useDriverGPS } from '../hooks/useDriverGPS'
 
 function routeParts(route: string | undefined) {
   if (!route) return { origin: '—', destination: '—' }
@@ -52,6 +53,7 @@ export default function RoutePage() {
   // GPS is keyed by trip_id in the shared schema
   const { location, gpsStatus, lastUpdate, loading: gpsLoading, refetch: refetchGps } =
     useGpsLocation(trip?.id)
+  const { isSharingGps, setIsSharingGps } = useDriverGPS(trip?.id)
 
   // Route stops are parsed from routeText dynamically
   const { stops } = useRouteStops(routeText)
@@ -211,7 +213,14 @@ export default function RoutePage() {
       }
 
       {/* GPS status panel */}
-      <GpsStatusPanel location={location as any} gpsStatus={gpsStatus} lastUpdate={lastUpdate} loading={gpsLoading} />
+      <GpsStatusPanel 
+        location={location as any} 
+        gpsStatus={gpsStatus} 
+        lastUpdate={lastUpdate} 
+        loading={gpsLoading}
+        isSharingGps={isSharingGps}
+        onToggleSharing={setIsSharingGps}
+      />
 
       {/* Stop timeline (parsed from route text) */}
       {stops.length > 1 && (

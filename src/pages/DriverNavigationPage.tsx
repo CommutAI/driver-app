@@ -42,6 +42,8 @@ export default function DriverNavigationPage() {
     speed,
     accuracy,
     gpsStatus,
+    isSharingGps,
+    setIsSharingGps,
   } = useDriverGPS(trip?.id)
 
   // Occupancy / Passenger count hook
@@ -288,6 +290,8 @@ export default function DriverNavigationPage() {
             <GPSStatusIndicator
               status={gpsStatus}
               accuracy={accuracy}
+              isSharing={isSharingGps}
+              onClick={() => setIsSharingGps(!isSharingGps)}
               style={{
                 height: 28,
                 padding: '0 8px',
