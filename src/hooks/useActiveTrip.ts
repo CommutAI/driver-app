@@ -48,7 +48,7 @@ export function useActiveTrip(): State {
           plate_number: 'OMANFORTSCO-01',
           bus_number: 1,
           route: 'Manolo Fortich → Agora Terminal, CDO',
-          seat_capacity: 31,
+          seat_capacity: 35,
           status: 'active',
           created_at: new Date().toISOString(),
           assigned_driver_id: null,

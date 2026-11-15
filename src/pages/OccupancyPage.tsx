@@ -7,9 +7,9 @@ import { useOccupancy }  from '../hooks/useOccupancy'
 import SectionHeader from '../components/ui/SectionHeader'
 import SoftCard      from '../components/ui/SoftCard'
 
-const CAPACITY_SEATS    = 25
-const CAPACITY_STANDING = 6
-const CAPACITY_TOTAL    = 31
+const CAPACITY_SEATS    = 35
+const CAPACITY_STANDING = 0
+const CAPACITY_TOTAL    = 35
 
 function gaugeColor(pct: number) {
   if (pct >= 100) return '#EF4444'

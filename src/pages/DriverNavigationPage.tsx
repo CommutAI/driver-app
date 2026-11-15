@@ -47,7 +47,7 @@ export default function DriverNavigationPage() {
   } = useDriverGPS(trip?.id)
 
   // Occupancy / Passenger count hook
-  const busCapacity = bus?.seat_capacity ?? 31
+  const busCapacity = bus?.seat_capacity ?? 35
   const { occupancy, loading: paxLoading } = useOccupancy(trip?.id, busCapacity)
 
   // Connectivity
