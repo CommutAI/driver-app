@@ -1,8 +1,6 @@
 import { Wifi, WifiOff, AlertTriangle, LocateFixed, LocateOff } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth }     from '../../contexts/AuthContext'
-import { useActiveTrip } from '../../hooks/useActiveTrip'
-import { useGpsLocation } from '../../hooks/useGpsLocation'
+import { useGpsSharing } from '../../hooks/useDriverGPS'
 import { format }      from 'date-fns'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -10,10 +8,8 @@ import Logo from '../Logo'
 import EmergencyModal from '../emergency/EmergencyModal'
 
 export default function TopBar() {
-  const navigate = useNavigate()
-  const { user }         = useAuth()
-  const { trip }         = useActiveTrip()
-  const { gpsStatus }    = useGpsLocation(trip?.id)
+  const { user } = useAuth()
+  const { isSharingGps, setIsSharingGps } = useGpsSharing()
   const [time,   setTime]   = useState(new Date())
   const [online, setOnline] = useState(navigator.onLine)
   const [emergencyOpen, setEmergencyOpen] = useState(false)
@@ -110,25 +106,48 @@ export default function TopBar() {
             <AlertTriangle size={20} />
           </button>
 
-          {/* GPS connectivity indicator */}
-          <div
-            title={`GPS: ${gpsStatus === 'connected' ? 'Connected' : gpsStatus === 'poor' ? 'Weak' : 'Disconnected'}`}
+          {/* Share location indicator & toggle */}
+          <button
+            type="button"
+            onClick={() => setIsSharingGps(!isSharingGps)}
+            aria-label={isSharingGps ? 'Location sharing active — tap to pause' : 'Location sharing paused — tap to start'}
+            title={
+              isSharingGps
+                ? '📡 Share Location: ON (broadcasting to dispatch & map) — Tap to pause'
+                : '📡 Share Location: OFF (paused) — Tap to share'
+            }
             style={{
+              position: 'relative',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              cursor: trip ? 'pointer' : 'default',
-              padding: 2,
+              padding: 4,
+              borderRadius: 8,
+              transition: 'transform var(--transition-fast)',
             }}
-            onClick={() => trip && navigate('/navigation')}
           >
-            {gpsStatus === 'connected' ? (
-              <LocateFixed size={18} color="var(--color-success)" aria-label="GPS Live" />
-            ) : gpsStatus === 'poor' ? (
-              <LocateFixed size={18} color="var(--color-warning)" aria-label="GPS Weak" />
+            {isSharingGps ? (
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <LocateFixed size={19} color="#10B981" aria-label="Share Location Active" />
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -1,
+                    right: -1,
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    backgroundColor: '#10B981',
+                    boxShadow: '0 0 6px #10B981',
+                  }}
+                />
+              </div>
             ) : (
-              <LocateOff size={18} color="var(--color-danger)" aria-label="GPS Disconnected" />
+              <LocateOff size={19} color="var(--color-danger)" aria-label="Share Location Paused" />
             )}
-          </div>
+          </button>
 
           {/* Network indicator */}
           {online

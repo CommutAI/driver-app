@@ -19,6 +19,45 @@ export interface DriverGpsState {
 
 const FASTAPI_URL = import.meta.env.VITE_FASTAPI_GPS_URL || null
 
+/**
+ * Hook to read and toggle driver GPS location sharing state.
+ * Synchronized across all components via CustomEvent and localStorage.
+ */
+export function useGpsSharing() {
+  const [isSharingGps, setIsSharingGpsState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('driver_share_gps')
+    return saved !== null ? saved === 'true' : true
+  })
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e?.detail !== undefined) {
+        setIsSharingGpsState(Boolean(e.detail))
+      } else {
+        const saved = localStorage.getItem('driver_share_gps')
+        setIsSharingGpsState(saved !== null ? saved === 'true' : true)
+      }
+    }
+
+    window.addEventListener('driver_gps_sharing_changed', handleSync)
+    window.addEventListener('storage', handleSync)
+    return () => {
+      window.removeEventListener('driver_gps_sharing_changed', handleSync)
+      window.removeEventListener('storage', handleSync)
+    }
+  }, [])
+
+  const setIsSharingGps = useCallback((val: boolean) => {
+    setIsSharingGpsState(val)
+    try {
+      localStorage.setItem('driver_share_gps', String(val))
+    } catch {}
+    window.dispatchEvent(new CustomEvent('driver_gps_sharing_changed', { detail: val }))
+  }, [])
+
+  return { isSharingGps, setIsSharingGps }
+}
+
 export function useDriverGPS(tripId?: string | null): DriverGpsState {
   const { latestLocation } = useRealtime()
 
@@ -30,16 +69,8 @@ export function useDriverGPS(tripId?: string | null): DriverGpsState {
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('disconnected')
   const [activeSource, setActiveSource] = useState<'fastapi' | 'supabase' | 'device' | 'none'>('none')
 
-  // Driver phone GPS sharing toggle (defaults to true)
-  const [isSharingGps, setIsSharingGpsState] = useState<boolean>(() => {
-    const saved = localStorage.getItem('driver_share_gps')
-    return saved !== null ? saved === 'true' : true
-  })
-
-  const setIsSharingGps = useCallback((val: boolean) => {
-    setIsSharingGpsState(val)
-    localStorage.setItem('driver_share_gps', String(val))
-  }, [])
+  // Driver phone GPS sharing toggle (synced across entire application)
+  const { isSharingGps, setIsSharingGps } = useGpsSharing()
 
   const lastUploadTimeRef = useRef<number>(0)
   const lastUploadPosRef = useRef<{ lat: number; lng: number } | null>(null)

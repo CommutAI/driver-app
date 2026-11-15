@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Bell, AlertTriangle, MapPin, Shield, ChevronDown, ChevronUp, Lock, FileText, UserCheck } from 'lucide-react'
+import { LogOut, Bell, AlertTriangle, MapPin, Shield, ChevronDown, ChevronUp, Lock, FileText, UserCheck, Radio, LocateFixed, LocateOff } from 'lucide-react'
 
 import { useAuth }        from '../contexts/AuthContext'
 import { useAssignedBus } from '../hooks/useAssignedBus'
+import { useGpsSharing }  from '../hooks/useDriverGPS'
 import SectionHeader from '../components/ui/SectionHeader'
 import SoftCard      from '../components/ui/SoftCard'
 import StatusBadge   from '../components/ui/StatusBadge'
@@ -15,6 +16,7 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { bus }           = useAssignedBus()
+  const { isSharingGps, setIsSharingGps } = useGpsSharing()
 
   const [showLogout,    setShowLogout]    = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
@@ -45,6 +47,7 @@ export default function ProfilePage() {
     { label: 'Staff ID',  value: user?.id.slice(0, 14) + '…', mono: true },
     { label: 'Role',      value: roleLabel },
     { label: 'Assigned Bus', value: bus ? `${bus.bus_number ? `Bus ${bus.bus_number} · ` : ''}${bus.plate_number}` : 'None' },
+    { label: 'GPS Sharing', value: isSharingGps ? 'Broadcasting (Live)' : 'Paused' },
   ]
 
   return (
@@ -123,6 +126,82 @@ export default function ProfilePage() {
             </span>
           </div>
         ))}
+      </SoftCard>
+
+      {/* ── Share Location Section ── */}
+      <SoftCard padding={20}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 10,
+              background: isSharingGps ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)',
+              border: `1px solid ${isSharingGps ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.25)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              {isSharingGps ? (
+                <Radio size={20} color="#10B981" />
+              ) : (
+                <LocateOff size={20} color="#EF4444" />
+              )}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Location Sharing
+                </h3>
+                <StatusBadge variant={isSharingGps ? 'success' : 'danger'}>
+                  {isSharingGps ? 'Broadcasting' : 'Paused'}
+                </StatusBadge>
+              </div>
+              <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {isSharingGps
+                  ? 'Phone coordinates are broadcasting live to dispatch, map & onboard Pi'
+                  : 'Broadcasting is paused. Dispatch and passengers cannot see live coordinates'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <motion.button
+          type="button"
+          onClick={() => setIsSharingGps(!isSharingGps)}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            width: '100%',
+            padding: '13px',
+            borderRadius: 12,
+            background: isSharingGps
+              ? 'rgba(239,68,68,0.12)'
+              : 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+            border: isSharingGps
+              ? '1px solid rgba(239,68,68,0.3)'
+              : '2px solid rgba(255,255,255,0.2)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            color: isSharingGps ? '#F87171' : '#ffffff',
+            fontWeight: 800,
+            fontSize: '0.9rem',
+            letterSpacing: '0.03em',
+            boxShadow: isSharingGps ? 'none' : '0 4px 16px rgba(16,185,129,0.35)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {isSharingGps ? (
+            <>
+              <LocateOff size={18} />
+              PAUSE LOCATION SHARING
+            </>
+          ) : (
+            <>
+              <LocateFixed size={18} />
+              START SHARING LOCATION
+            </>
+          )}
+        </motion.button>
       </SoftCard>
 
       {/* ── Emergency Section ── */}
