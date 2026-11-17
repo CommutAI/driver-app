@@ -18,6 +18,8 @@ Built with React 19 + TypeScript, Tailwind CSS v4, Supabase, and Leaflet.
 | Routing      | React Router v7                     |
 | Icons        | Lucide React                        |
 | Date utils   | date-fns                            |
+| Mobile       | Capacitor 5 (Android APK)          |
+| Navigation   | OSRM (OpenStreetMap routing)        |
 
 ---
 
@@ -75,6 +77,26 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173)
 
+### 6. Build Android APK (optional)
+
+The app can be packaged as an Android APK using Capacitor:
+
+```bash
+# Build the web app
+npm run build
+
+# Sync with Capacitor
+npx cap sync android
+
+# Build debug APK
+cd android
+./gradlew assembleDebug
+
+# APK location: android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+For release builds, use `assembleRelease` and sign with a keystore.
+
 ---
 
 ## Project Structure
@@ -86,6 +108,7 @@ src/
 │   ├── emergency/     # EmergencyFab (pulsing FAB), EmergencyModal (3-step flow)
 │   ├── gps/           # GpsStatusPanel
 │   ├── layout/        # AppShell, TopBar, BottomNav, ProtectedRoute
+│   ├── navigation/    # NavigationMap, RoutePolyline (mobile turn-by-turn)
 │   ├── route/         # RouteMap (Leaflet), StopList
 │   ├── trip/          # ConfirmModal, ConductorInfoCard, TripDetailRow
 │   └── ui/            # Card, StatusBadge, SectionHeader, Skeleton
@@ -93,12 +116,17 @@ src/
 │   ├── AuthContext.tsx     # Supabase auth + driver-role guard
 │   └── RealtimeContext.tsx # All Supabase Realtime channel subscriptions
 ├── db/
-│   └── schema.sql     # Full PostgreSQL schema with RLS policies
+│   ├── schema.sql              # Full PostgreSQL schema with RLS policies
+│   ├── setup_users.sql         # Seed driver/conductor data
+│   ├── migrations/             # Database migration scripts
+│   ├── check_auth_mapping.sql  # Auth debugging utilities
+│   └── fix_stuck_trip.sql      # Trip repair utilities
 ├── hooks/
 │   ├── useActiveTrip.ts
 │   ├── useAssignedBus.ts
-│   ├── useGpsLocation.ts  # Polling + Realtime merge
-│   ├── useOccupancy.ts    # Polling + Realtime merge
+│   ├── useGpsLocation.ts       # Polling + Realtime merge
+│   ├── useNavigationRoute.ts   # OSRM route calculation (mobile)
+│   ├── useOccupancy.ts         # Polling + Realtime merge
 │   ├── useRouteStops.ts
 │   └── useUnreadCounts.ts
 ├── lib/
@@ -106,20 +134,39 @@ src/
 ├── pages/
 │   ├── LoginPage.tsx
 │   ├── DashboardPage.tsx
-│   ├── TripPage.tsx        # START/END trip flow
-│   ├── RoutePage.tsx       # Leaflet map + stop timeline
-│   ├── OccupancyPage.tsx   # Radial gauge + breakdown
+│   ├── DriverNavigationPage.tsx  # Mobile turn-by-turn navigation
+│   ├── TripPage.tsx               # START/END trip flow
+│   ├── RoutePage.tsx              # Leaflet map + stop timeline
+│   ├── OccupancyPage.tsx          # Radial gauge + breakdown
 │   ├── NotificationsPage.tsx
 │   ├── AnnouncementsPage.tsx
 │   ├── BusStatusPage.tsx
 │   ├── IncidentPage.tsx
 │   ├── HistoryPage.tsx
 │   └── ProfilePage.tsx
+├── services/
+│   └── routingService.ts   # OSRM API integration with caching
 ├── types/
 │   ├── index.ts       # All domain types and enums
 │   └── database.ts    # Supabase row/insert/update shapes
 └── utils/
-    └── activityLogger.ts  # Fire-and-forget activity log helper
+    ├── activityLogger.ts  # Fire-and-forget activity log helper
+    └── geoUtils.ts        # Haversine distance calculations
+
+raspberry-pi/
+└── sms_queue_processor.py    # SMS notification queue processor
+
+scripts/
+├── generate-password-hash.js  # Generate bcrypt password hashes
+└── test-password.js           # Test password verification
+
+android/                          # Capacitor Android project
+├── app/
+│   ├── build.gradle
+│   └── capacitor.build.gradle
+├── build.gradle
+├── capacitor.settings.gradle
+└── variables.gradle            # SDK versions and dependencies
 ```
 
 ---
@@ -196,17 +243,36 @@ src/
 
 ### Driver Profile
 - Avatar with initials, full account info
+- Expandable sections: Data Privacy, Role & Permissions, Terms & Usage Policy
 - Change password (supabase.auth.updateUser)
 - Confirmed sign-out
+
+### Mobile Navigation (Android APK)
+- Full-screen turn-by-turn navigation mode
+- OSRM-powered routing from OpenStreetMap
+- Road-following geometry (not straight lines)
+- Route caching for offline operation (24-hour cache)
+- Terminal-to-terminal route calculation (Manolo Fortich ↔ Agora)
+- Real-time bus marker along route
+- Capacitor HTTP for mobile network compatibility
 
 ### Realtime Subscriptions
 All live data flows through `RealtimeContext`:
 - `bus_locations` → GPS updates
-- `ai_passenger_counts` → occupancy updates  
+- `ai_passenger_counts` → occupancy updates
 - `trips` → trip status changes
 - `notifications` → push to bell badge
 - `announcements` → push to badge
 - `buses` → hardware status changes
+
+### SMS Notifications (Raspberry Pi)
+- `raspberry-pi/sms_queue_processor.py` processes SMS queue from Supabase
+- Integrates with GSM modem for emergency and alert notifications
+- Polls `sms_queue` table and sends via SMS gateway
+
+### Utility Scripts
+- `scripts/generate-password-hash.js` — Generate bcrypt password hashes for custom auth
+- `scripts/test-password.js` — Test password verification against stored hash
 
 ---
 
@@ -231,10 +297,11 @@ Row Level Security in Supabase enforces these boundaries at the database level.
 
 ## Database Schema Summary
 
-See `src/db/schema.sql` for the complete schema.
+See `src/db/schema.sql` for the complete schema. Migrations are in `src/db/migrations/`.
 
 Key tables:
 - `users` — mirrors `auth.users`, stores role
+- `staff_users` — driver/conductor profiles with bus assignment and optional password hash for custom auth
 - `drivers` / `conductors` — role-specific profiles
 - `buses` — bus identity, capacity, device statuses
 - `routes` + `route_stops` — Manolo Fortich → CDO route
@@ -246,6 +313,7 @@ Key tables:
 - `announcements` + `announcement_reads` — operator messages
 - `notifications` — per-user system notifications
 - `activity_logs` — immutable audit trail
+- `sms_queue` — SMS notification queue for Raspberry Pi processor
 
 ---
 
@@ -278,4 +346,4 @@ Key tables:
 ---
 
 *CommutAI v1.0 — OMANFORTSCO · Manolo Fortich–Cagayan de Oro Route*
-# driver-app
+*Built with Capacitor for Android APK deployment*
