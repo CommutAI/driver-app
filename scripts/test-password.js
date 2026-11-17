@@ -4,7 +4,7 @@
  * Example: node scripts/test-password.js "mypassword" "$2b$10$..."
  */
 
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 
 const password = process.argv[2];
 const hash = process.argv[3];
