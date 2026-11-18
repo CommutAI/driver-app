@@ -49,25 +49,19 @@ This creates all tables, types, RLS policies, triggers, and seed data.
 
 ### 4. Create a driver user
 
-In Supabase **Authentication → Users**, create a user, then run:
+The app uses custom bcrypt authentication via the `staff_users` table. Run `src/db/setup_users.sql` to create seed data, then set a password:
 
 ```sql
--- After the user signs up, set their role and create a driver profile
-update public.users set role = 'driver' where email = 'driver@example.com';
+-- Generate a password hash using the script
+node scripts/generate-password-hash.js "your-password"
 
-insert into public.drivers (user_id, driver_id_number, license_number, license_expiry)
-values (
-  '<user-uuid>',
-  'DRV-001',
-  'LIC-123456',
-  '2027-12-31'
-);
-
--- Assign the driver to the bus
-update public.buses
-set current_driver_id = (select id from public.drivers where driver_id_number = 'DRV-001')
-where bus_number = 'OMANFORTSCO-001';
+-- Update the driver's password with the generated hash
+UPDATE staff_users
+SET password = '$2b$10$<generated-hash>'
+WHERE email = 'driver@commutai.local';
 ```
+
+Or use the provided `src/db/set_driver_password.sql` script which sets password `driver123` for the default driver account.
 
 ### 5. Run the dev server
 
@@ -113,11 +107,12 @@ src/
 │   ├── trip/          # ConfirmModal, ConductorInfoCard, TripDetailRow
 │   └── ui/            # Card, StatusBadge, SectionHeader, Skeleton
 ├── contexts/
-│   ├── AuthContext.tsx     # Supabase auth + driver-role guard
+│   ├── AuthContext.tsx     # Custom bcrypt auth + driver-role guard
 │   └── RealtimeContext.tsx # All Supabase Realtime channel subscriptions
 ├── db/
 │   ├── schema.sql              # Full PostgreSQL schema with RLS policies
 │   ├── setup_users.sql         # Seed driver/conductor data
+│   ├── set_driver_password.sql # Set password for driver account
 │   ├── migrations/             # Database migration scripts
 │   ├── check_auth_mapping.sql  # Auth debugging utilities
 │   └── fix_stuck_trip.sql      # Trip repair utilities
@@ -174,9 +169,10 @@ android/                          # Capacitor Android project
 ## Features
 
 ### Authentication
-- Supabase email/password login
+- Custom bcrypt-based authentication via `staff_users` table
 - Driver-role guard (only `role = 'driver'` accounts can log in)
-- Auto session persistence
+- Auto session persistence via localStorage
+- Password hashes generated using bcrypt (10 salt rounds)
 
 ### Dashboard
 - Assigned bus info (bus number, plate, status)
