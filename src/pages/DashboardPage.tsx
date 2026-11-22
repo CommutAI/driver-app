@@ -191,7 +191,7 @@ export default function DashboardPage() {
         .from('trips') as any)
         .select('*, bus:buses!trips_bus_id_fkey(*)')
         .or(`conductor_id.eq.${user.id},driver_id.eq.${user.id}`)
-        .in('status', ['completed', 'cancelled'])
+        .eq('status', 'completed')
         .order('started_at', { ascending: false })
         .limit(3) as { data: Trip[] | null }
 
@@ -1055,8 +1055,8 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      <StatusBadge variant={isDone ? 'success' : 'danger'}>
-                        {isDone ? 'Completed' : 'Cancelled'}
+                      <StatusBadge variant="success">
+                        Completed
                       </StatusBadge>
                     </div>
                   )

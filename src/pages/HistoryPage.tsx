@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { format, formatDuration, intervalToDuration } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Clock, CheckCircle2, XCircle,
+  Clock, CheckCircle2,
   Loader2, ChevronDown, ChevronUp,
   Copy, Check,
   ArrowRight, ShieldCheck, Search,
-  Calendar, TrendingUp, Bus,
+  Calendar, Bus,
   MapPin, Hourglass, Download,
 } from 'lucide-react'
 
@@ -35,7 +35,6 @@ export default function HistoryPage() {
   const [trips,    setTrips]    = useState<Trip[]>([])
   const [loading,  setLoading]  = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [filter,   setFilter]   = useState<'all' | 'completed' | 'cancelled'>('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -48,9 +47,8 @@ export default function HistoryPage() {
   }
 
   const filteredTrips = trips.filter(t => {
-    // Status filter
-    if (filter === 'completed' && t.status !== 'completed') return false
-    if (filter === 'cancelled' && t.status !== 'cancelled') return false
+    // Only completed trips in history
+    if (t.status !== 'completed') return false
     
     // Search filter
     if (searchQuery) {
@@ -137,7 +135,7 @@ export default function HistoryPage() {
       .from('trips') as any)
       .select('*, bus:buses!trips_bus_id_fkey(*)')
       .or(`conductor_id.eq.${user.id},driver_id.eq.${user.id}`)
-      .in('status', ['completed', 'cancelled'])
+      .eq('status', 'completed')
       .order('started_at', { ascending: false })
       .limit(50) as { data: Trip[] | null }
 
@@ -146,9 +144,6 @@ export default function HistoryPage() {
   }, [user])
 
   useEffect(() => { fetchHistory() }, [fetchHistory])
-
-  const completedCount = trips.filter(t => t.status === 'completed').length
-  const cancelledCount = trips.filter(t => t.status === 'cancelled').length
 
   return (
     <motion.div
@@ -159,18 +154,17 @@ export default function HistoryPage() {
     >
       <SectionHeader
         title="Trip History"
-        subtitle="Historical journey logs & telemetry records"
+        subtitle="Historical completed journey logs & telemetry records"
         light
       />
 
       {/* Enhanced Stats Cards */}
       {!loading && trips.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           {[
-            { value: trips.length,   label: 'Total Trips', color: '#FFFFFF', icon: Bus },
-            { value: completedCount, label: 'Completed',   color: '#4ADE80', icon: CheckCircle2 },
-            { value: cancelledCount, label: 'Cancelled',   color: '#F87171', icon: XCircle },
-            { value: `${Math.round((completedCount / trips.length) * 100)}%`, label: 'Success Rate', color: '#F97316', icon: TrendingUp },
+            { value: trips.length,   label: 'Completed Trips', color: '#4ADE80', icon: CheckCircle2 },
+            { value: new Set(trips.map(t => (t.bus as any)?.plate_number || t.bus_id)).size, label: 'Buses Driven',   color: '#60A5FA', icon: Bus },
+            { value: trips[0]?.started_at ? format(new Date(trips[0].started_at), 'MMM d') : '—', label: 'Last Completed', color: '#F97316', icon: Calendar },
           ].map(({ value, label, color, icon: Icon }) => (
             <SoftCard key={label} padding={12}>
               <div style={{ textAlign: 'center' }}>
@@ -187,84 +181,41 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* Search and Filter Bar */}
+      {/* Search Bar */}
       {!loading && trips.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Search Input */}
-          <div style={{ position: 'relative' }}>
-            <Search 
-              size={18} 
-              style={{ 
-                position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                color: 'var(--text-tertiary)' 
-              }} 
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search trips by route, plate number, or ID..."
-              style={{
-                width: '100%',
-                padding: '12px 14px 12px 44px',
-                borderRadius: 12,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.05)',
-                color: 'var(--text-primary)',
-                fontSize: '0.9rem',
-                outline: 'none',
-                transition: 'all 0.2s ease',
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = 'var(--color-primary)'
-                e.target.style.background = 'rgba(255,255,255,0.08)'
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(255,255,255,0.1)'
-                e.target.style.background = 'rgba(255,255,255,0.05)'
-              }}
-            />
-          </div>
-
-          {/* Filter Row */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {/* Status Filter */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'rgba(15, 17, 23, 0.7)',
-                padding: 4,
-                borderRadius: 12,
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                width: '100%',
-              }}
-            >
-              {(['all', 'completed', 'cancelled'] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFilter(f)}
-                  style={{
-                    flex: 1,
-                    padding: '6px 10px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: filter === f ? 'var(--color-primary-gradient)' : 'transparent',
-                    color: filter === f ? '#FFFFFF' : 'var(--text-secondary)',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  {f} ({f === 'all' ? trips.length : f === 'completed' ? completedCount : cancelledCount})
-                </button>
-              ))}
-            </div>
-          </div>
+        <div style={{ position: 'relative' }}>
+          <Search 
+            size={18} 
+            style={{ 
+              position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--text-tertiary)' 
+            }} 
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search trips by route, plate number, or ID..."
+            style={{
+              width: '100%',
+              padding: '12px 14px 12px 44px',
+              borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.05)',
+              color: 'var(--text-primary)',
+              fontSize: '0.9rem',
+              outline: 'none',
+              transition: 'all 0.2s ease',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--color-primary)'
+              e.target.style.background = 'rgba(255,255,255,0.08)'
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgba(255,255,255,0.1)'
+              e.target.style.background = 'rgba(255,255,255,0.05)'
+            }}
+          />
         </div>
       )}
 
@@ -293,9 +244,9 @@ export default function HistoryPage() {
               No trips found
             </p>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {filter === 'all'
-                ? 'Completed trips will appear here once finalized.'
-                : `No ${filter} trips recorded in this period.`}
+              {searchQuery
+                ? 'No completed trips match your search query.'
+                : 'Completed trips will appear here once finalized.'}
             </p>
           </div>
         </SoftCard>
@@ -303,7 +254,6 @@ export default function HistoryPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filteredTrips.map((trip, i) => {
             const isOpen = expanded === trip.id
-            const isDone = trip.status === 'completed'
             const bus    = trip.bus as any
             const defaultParts = routeParts(bus?.route)
             const origin = trip.starting_point || defaultParts.origin
@@ -341,37 +291,20 @@ export default function HistoryPage() {
                   }}
                 >
                   <div style={{ flexShrink: 0 }}>
-                    {isDone ? (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 12,
-                          background: 'rgba(34, 197, 94, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '1px solid rgba(34, 197, 94, 0.3)',
-                        }}
-                      >
-                        <CheckCircle2 size={22} color="#4ADE80" />
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 12,
-                          background: 'rgba(239, 68, 68, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                        }}
-                      >
-                        <XCircle size={22} color="#F87171" />
-                      </div>
-                    )}
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        background: 'rgba(34, 197, 94, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid rgba(34, 197, 94, 0.3)',
+                      }}
+                    >
+                      <CheckCircle2 size={22} color="#4ADE80" />
+                    </div>
                   </div>
 
                   {/* Route & Metadata */}
@@ -428,8 +361,8 @@ export default function HistoryPage() {
 
                   {/* Status badge & Chevron */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <StatusBadge variant={isDone ? 'success' : 'danger'}>
-                      {isDone ? 'Completed' : 'Cancelled'}
+                    <StatusBadge variant="success">
+                      Completed
                     </StatusBadge>
                     <div style={{ color: 'var(--text-tertiary)' }}>
                       {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
