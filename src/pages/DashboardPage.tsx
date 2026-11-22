@@ -17,7 +17,7 @@ import { useRouteStops }  from '../hooks/useRouteStops'
 import { useNavigationRoute } from '../hooks/useNavigationRoute'
 import { useRouteProgress }   from '../hooks/useRouteProgress'
 import { supabase }       from '../lib/supabase'
-import { DEFAULT_ORIGIN, DEFAULT_DESTINATION } from '../services/routingService'
+import { DEFAULT_ORIGIN, DEFAULT_DESTINATION, getTerminalCoordinates } from '../services/routingService'
 import type { Coordinates, Trip } from '../types'
 import RouteMap           from '../components/route/RouteMap'
 import SoftCard           from '../components/ui/SoftCard'
@@ -262,6 +262,9 @@ export default function DashboardPage() {
     if (showCustomRoute && customOrigin && customDestination) {
       startingPoint = customOrigin
       endPoint = customDestination
+      localStorage.setItem('driver_custom_origin', customOrigin)
+      localStorage.setItem('driver_custom_destination', customDestination)
+      localStorage.setItem('driver_selected_route', 'custom')
     } else {
       startingPoint = isAgoraToManolo ? 'Agora Terminal' : 'Manolo Fortich Terminal'
       endPoint = isAgoraToManolo ? 'Manolo Fortich Terminal' : 'Agora Terminal'
@@ -797,14 +800,19 @@ export default function DashboardPage() {
                       background: 'rgba(34, 197, 94, 0.12)',
                       border: '1px solid rgba(34, 197, 94, 0.3)',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      flexDirection: 'column',
+                      gap: 4,
                     }}
                   >
-                    <CheckCircle2 size={16} color="#22C55E" />
-                    <span style={{ fontSize: '0.8rem', color: '#4ADE80', fontWeight: 700 }}>
-                      {customOrigin} → {customDestination}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <CheckCircle2 size={16} color="#22C55E" />
+                      <span style={{ fontSize: '0.82rem', color: '#4ADE80', fontWeight: 700 }}>
+                        {customOrigin} → {customDestination}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.75)', fontFamily: 'monospace', paddingLeft: 24 }}>
+                      📍 Target GPS: {getTerminalCoordinates(customDestination).latitude.toFixed(4)}° N, {getTerminalCoordinates(customDestination).longitude.toFixed(4)}° E
+                    </div>
                   </div>
                 )}
               </motion.div>

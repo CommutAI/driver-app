@@ -31,7 +31,7 @@ export function useNavigationRoute(
 
   const offRouteCountRef = useRef<number>(0)
   const lastRecalcTimeRef = useRef<number>(0)
-  const initialCalculatedRef = useRef<boolean>(false)
+  const lastCalculatedKeyRef = useRef<string>('')
 
   // Compute route from current location to destination
   const computeRoute = useCallback(
@@ -58,16 +58,19 @@ export function useNavigationRoute(
         setIsRecalculating(false)
       }
     },
-    [currentLocation?.latitude, currentLocation?.longitude, destination.latitude, destination.longitude] // eslint-disable-line react-hooks/exhaustive-deps
+    [currentLocation?.latitude, currentLocation?.longitude, destination?.latitude, destination?.longitude] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  // Initial calculation when location first becomes available
+  // Re-calculate route when origin or destination coordinates change
   useEffect(() => {
-    if (currentLocation && !initialCalculatedRef.current) {
-      initialCalculatedRef.current = true
-      computeRoute(false)
+    if (currentLocation && destination) {
+      const key = `${currentLocation.latitude.toFixed(4)},${currentLocation.longitude.toFixed(4)}->${destination.latitude.toFixed(4)},${destination.longitude.toFixed(4)}`
+      if (lastCalculatedKeyRef.current !== key) {
+        lastCalculatedKeyRef.current = key
+        computeRoute(false)
+      }
     }
-  }, [currentLocation, computeRoute])
+  }, [currentLocation?.latitude, currentLocation?.longitude, destination?.latitude, destination?.longitude, computeRoute])
 
   // Monitor off-route status as GPS updates
   useEffect(() => {

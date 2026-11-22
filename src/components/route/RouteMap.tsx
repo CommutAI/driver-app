@@ -8,6 +8,7 @@ import {
   DEFAULT_CORRIDOR_STOPS,
   DEFAULT_ORIGIN,
   DEFAULT_DESTINATION,
+  getTerminalCoordinates,
 } from '../../services/routingService'
 
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -39,19 +40,6 @@ if (!document.getElementById('leaflet-style-override')) {
   `
   document.head.appendChild(style)
 }
-
-// Custom marker icons matching public-dashboard style
-const createCustomIcon = (color: string, size: number = 16) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size/2, size/2],
-    popupAnchor: [0, -size/2]
-  })
-}
-
-const activeIcon = createCustomIcon('#f59e0b') // Amber for active stops
 
 // Custom Start Terminal Pin
 const createStartPin = (terminalName: string) => {
@@ -296,10 +284,11 @@ interface Props {
   stops: ParsedStop[]
   busLocation: GpsLocation | null
   destinationTitle?: string
+  originTitle?: string
   routeDirection?: 'manolo_to_agora' | 'agora_to_manolo' | string
 }
 
-export default function RouteMap({ stops, busLocation, destinationTitle, routeDirection }: Props) {
+export default function RouteMap({ stops, busLocation, destinationTitle, originTitle, routeDirection }: Props) {
   const defaultCenter: [number, number] = [8.43, 124.75] // Center of the route area
   const center: [number, number] = busLocation
     ? [Number(busLocation.latitude), Number(busLocation.longitude)]
@@ -315,6 +304,18 @@ export default function RouteMap({ stops, busLocation, destinationTitle, routeDi
     return stops.length > 0 && stops[0].stop_name.toLowerCase().includes('agora')
   }, [routeDirection, stops])
 
+  const originCoords = useMemo(() => {
+    return originTitle
+      ? getTerminalCoordinates(originTitle, isAgoraRoute ? DEFAULT_DESTINATION : DEFAULT_ORIGIN)
+      : (isAgoraRoute ? DEFAULT_DESTINATION : DEFAULT_ORIGIN)
+  }, [originTitle, isAgoraRoute])
+
+  const destCoords = useMemo(() => {
+    return destinationTitle
+      ? getTerminalCoordinates(destinationTitle, isAgoraRoute ? DEFAULT_ORIGIN : DEFAULT_DESTINATION)
+      : (isAgoraRoute ? DEFAULT_ORIGIN : DEFAULT_DESTINATION)
+  }, [destinationTitle, isAgoraRoute])
+
   const defaultCorridorCoords = useMemo(() => {
     const raw = DEFAULT_CORRIDOR_STOPS.map(s => s.coords)
     return isAgoraRoute ? [...raw].reverse() : raw
@@ -326,10 +327,7 @@ export default function RouteMap({ stops, busLocation, destinationTitle, routeDi
     let active = true
     async function loadRoadRoute() {
       try {
-        const origin = isAgoraRoute ? DEFAULT_DESTINATION : DEFAULT_ORIGIN
-        const destination = isAgoraRoute ? DEFAULT_ORIGIN : DEFAULT_DESTINATION
-
-        const res = await calculateRoute(origin, destination)
+        const res = await calculateRoute(originCoords, destCoords)
         if (active && res?.geometry && res.geometry.length > 0) {
           setRouteCoordinates(res.geometry)
         }
@@ -341,7 +339,7 @@ export default function RouteMap({ stops, busLocation, destinationTitle, routeDi
     }
     loadRoadRoute()
     return () => { active = false }
-  }, [isAgoraRoute, stops])
+  }, [originCoords, destCoords, stops])
   
   return (
     <div style={{
@@ -376,28 +374,33 @@ export default function RouteMap({ stops, busLocation, destinationTitle, routeDi
           />
         )}
 
-        {stops.filter(stop => stop.status === 'START' || stop.status === 'END').map((stop) => {
-          let icon = activeIcon
-          let zIndex = 500
-          if (stop.status === 'START') {
-            icon = createStartPin(stop.stop_name)
-            zIndex = 1100
-          } else if (stop.status === 'END') {
-            icon = createDestinationPin(destinationTitle || stop.stop_name)
-            zIndex = 1200
-          }
+        {/* Start / Origin Terminal Pin */}
+        <Marker
+          position={[originCoords.latitude, originCoords.longitude]}
+          icon={createStartPin(originTitle || 'Start')}
+          zIndexOffset={1100}
+        >
+          <Popup>
+            <div style={{ fontSize: 12, background: '#1E2130', color: '#F3F4F6', padding: '6px 8px', borderRadius: 8 }}>
+              <strong>{originTitle || 'Starting Point'}</strong>
+              <br /><span style={{ color: '#4ADE80' }}>Origin Terminal</span>
+            </div>
+          </Popup>
+        </Marker>
 
-          return (
-            <Marker key={`${stop.id}-${stop.status}-${stop.stop_name}`} position={[Number(stop.latitude), Number(stop.longitude)]} icon={icon} zIndexOffset={zIndex}>
-              <Popup>
-                <div style={{ fontSize: 12, background: '#1E2130', color: '#F3F4F6', padding: '6px 8px', borderRadius: 8 }}>
-                  <strong>{stop.stop_name}</strong>
-                  <br /><span style={{ color: '#9CA3AF' }}>{stop.stop} ({stop.status})</span>
-                </div>
-              </Popup>
-            </Marker>
-          )
-        })}
+        {/* Destination Terminal Pin */}
+        <Marker
+          position={[destCoords.latitude, destCoords.longitude]}
+          icon={createDestinationPin(destinationTitle || 'Destination')}
+          zIndexOffset={1200}
+        >
+          <Popup>
+            <div style={{ fontSize: 12, background: '#1E2130', color: '#F3F4F6', padding: '6px 8px', borderRadius: 8 }}>
+              <strong>{destinationTitle || 'Destination'}</strong>
+              <br /><span style={{ color: '#F97316' }}>Destination Terminal</span>
+            </div>
+          </Popup>
+        </Marker>
 
         {busLocation && (
           <>

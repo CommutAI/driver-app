@@ -205,7 +205,8 @@ export default function RoutePage() {
             <RouteMap
               stops={stops}
               busLocation={location as any}
-              destinationTitle={isAgoraToManolo ? 'Manolo Fortich Terminal' : 'Agora Terminal, CDO'}
+              originTitle={trip?.starting_point || (isAgoraToManolo ? 'Agora Terminal, CDO' : 'Manolo Fortich Terminal')}
+              destinationTitle={trip?.end_point || (isAgoraToManolo ? 'Manolo Fortich Terminal' : 'Agora Terminal, CDO')}
               routeDirection={isAgoraToManolo ? 'agora_to_manolo' : 'manolo_to_agora'}
             />
           </div>

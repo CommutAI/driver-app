@@ -243,6 +243,134 @@ export const DEFAULT_DESTINATION: Coordinates = {
 }
 
 /**
+ * High-precision GPS coordinates for key terminals and stops in Northern Mindanao
+ */
+export const KNOWN_TERMINAL_COORDINATES: Record<string, Coordinates> = {
+  // Manolo Fortich Terminals & Corridor Stops
+  'manolo fortich terminal': { latitude: 8.3663088, longitude: 124.865008 },
+  'manolo fortich': { latitude: 8.3663088, longitude: 124.865008 },
+  'tankulan': { latitude: 8.3688, longitude: 124.8641 },
+  'dicklum': { latitude: 8.3740, longitude: 124.8480 },
+  'san miguel': { latitude: 8.3890, longitude: 124.8332 },
+  'lunocan': { latitude: 8.4143, longitude: 124.8231 },
+  'alae': { latitude: 8.4244, longitude: 124.8128 },
+  'bae upper puerto': { latitude: 8.4264, longitude: 124.8092 },
+
+  // Cagayan de Oro City Terminals & Landmarks
+  'agora terminal, cdo': { latitude: 8.4890748, longitude: 124.657629 },
+  'agora terminal': { latitude: 8.4890748, longitude: 124.657629 },
+  'agora': { latitude: 8.4890748, longitude: 124.657629 },
+  'cagayan de oro city hall': { latitude: 8.4839, longitude: 124.6472 },
+  'cdo city hall': { latitude: 8.4839, longitude: 124.6472 },
+  'limketkai center': { latitude: 8.4827, longitude: 124.6568 },
+  'limketkai': { latitude: 8.4827, longitude: 124.6568 },
+  'centrio mall': { latitude: 8.4878, longitude: 124.6517 },
+  'centrio': { latitude: 8.4878, longitude: 124.6517 },
+  'sm city cagayan de oro': { latitude: 8.4552, longitude: 124.6236 },
+  'sm cdo uptown': { latitude: 8.4552, longitude: 124.6236 },
+  'sm downtown': { latitude: 8.4862, longitude: 124.6547 },
+  'gaisano cdo': { latitude: 8.4867, longitude: 124.6500 },
+  'gusa': { latitude: 8.4757, longitude: 124.6823 },
+  'tablon': { latitude: 8.4819, longitude: 124.7286 },
+  'tablon baloi': { latitude: 8.4819, longitude: 124.7286 },
+  'agusan': { latitude: 8.4886, longitude: 124.7382 },
+  'puerto': { latitude: 8.5010, longitude: 124.7505 },
+
+  // Bukidnon South Terminals & Cities
+  'bukidnon provincial capitol': { latitude: 8.1575, longitude: 125.1278 },
+  'malaybalay city terminal': { latitude: 8.1538, longitude: 125.1294 },
+  'malaybalay': { latitude: 8.1538, longitude: 125.1294 },
+  'valencia city terminal': { latitude: 7.9064, longitude: 125.0934 },
+  'valencia': { latitude: 7.9064, longitude: 125.0934 },
+  'maramag terminal': { latitude: 7.7592, longitude: 125.0042 },
+  'maramag': { latitude: 7.7592, longitude: 125.0042 },
+  'don carlos terminal': { latitude: 7.6833, longitude: 124.9917 },
+  'don carlos': { latitude: 7.6833, longitude: 124.9917 },
+  'quezon terminal': { latitude: 7.7283, longitude: 125.0983 },
+}
+
+/**
+ * Fast synchronous coordinate resolver with fallback
+ */
+export function getTerminalCoordinates(name?: string | null, fallback?: Coordinates): Coordinates {
+  if (!name || !name.trim()) return fallback ?? DEFAULT_DESTINATION
+  const cleaned = name.trim().toLowerCase()
+
+  if (KNOWN_TERMINAL_COORDINATES[cleaned]) {
+    return KNOWN_TERMINAL_COORDINATES[cleaned]
+  }
+
+  for (const [key, coords] of Object.entries(KNOWN_TERMINAL_COORDINATES)) {
+    if (cleaned.includes(key) || key.includes(cleaned)) {
+      return coords
+    }
+  }
+
+  if (cleaned.includes('agora') || cleaned.includes('cdo')) {
+    return DEFAULT_DESTINATION
+  }
+  if (cleaned.includes('manolo')) {
+    return DEFAULT_ORIGIN
+  }
+
+  return fallback ?? DEFAULT_DESTINATION
+}
+
+/**
+ * Asynchronously fetch precise GPS coordinates for any custom terminal or location name.
+ * Uses known coordinates dictionary first, with OpenStreetMap Nominatim geocoding fallback.
+ */
+export async function fetchLocationCoordinates(name: string): Promise<Coordinates | null> {
+  if (!name || !name.trim()) return null
+  const cleaned = name.trim().toLowerCase()
+
+  if (KNOWN_TERMINAL_COORDINATES[cleaned]) {
+    return KNOWN_TERMINAL_COORDINATES[cleaned]
+  }
+
+  for (const [key, coords] of Object.entries(KNOWN_TERMINAL_COORDINATES)) {
+    if (cleaned.includes(key) || key.includes(cleaned)) {
+      return coords
+    }
+  }
+
+  try {
+    const query = encodeURIComponent(`${name}, Northern Mindanao, Philippines`)
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`
+    let data: any = null
+
+    try {
+      const res = await CapacitorHttp.get({
+        url,
+        headers: { 'Accept': 'application/json' },
+        connectTimeout: 5000,
+        readTimeout: 5000,
+      })
+      if (res.status === 200 && res.data) {
+        data = res.data
+      }
+    } catch {
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+      if (res.ok) {
+        data = await res.json()
+      }
+    }
+
+    if (Array.isArray(data) && data.length > 0) {
+      const lat = parseFloat(data[0].lat)
+      const lon = parseFloat(data[0].lon)
+      if (!isNaN(lat) && !isNaN(lon)) {
+        return { latitude: lat, longitude: lon }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Geocoding lookup failed for "${name}"]:`, err)
+  }
+
+  return null
+}
+
+/**
  * Map OSRM step maneuver to our ManeuverType
  */
 function mapOsrmManeuver(type: string, modifier?: string): ManeuverType {
@@ -301,13 +429,33 @@ function generateFallbackRoute(
   origin: Coordinates,
   destination: Coordinates
 ): NavigationRoute {
-  // Determine direction based on origin vs destination latitude
-  const isManoloToAgora = origin.latitude < destination.latitude
+  // Check if route matches standard Manolo-Agora corridor
+  const distToManolo = Math.min(
+    haversineDistance([origin.latitude, origin.longitude], [DEFAULT_ORIGIN.latitude, DEFAULT_ORIGIN.longitude]),
+    haversineDistance([destination.latitude, destination.longitude], [DEFAULT_ORIGIN.latitude, DEFAULT_ORIGIN.longitude])
+  )
+  const distToAgora = Math.min(
+    haversineDistance([origin.latitude, origin.longitude], [DEFAULT_DESTINATION.latitude, DEFAULT_DESTINATION.longitude]),
+    haversineDistance([destination.latitude, destination.longitude], [DEFAULT_DESTINATION.latitude, DEFAULT_DESTINATION.longitude])
+  )
 
-  // Use pre-baked OSRM geometry for road-following route
-  const geometry: [number, number][] = isManoloToAgora
-    ? OSRM_MANOLO_TO_AGORA
-    : [...OSRM_MANOLO_TO_AGORA].reverse()
+  let geometry: [number, number][]
+  if (distToManolo < 18000 && distToAgora < 18000) {
+    const isManoloToAgora = origin.latitude < destination.latitude
+    geometry = isManoloToAgora ? OSRM_MANOLO_TO_AGORA : [...OSRM_MANOLO_TO_AGORA].reverse()
+  } else {
+    // Custom route fallback: interpolate points directly between origin and destination
+    const totalDist = haversineDistance([origin.latitude, origin.longitude], [destination.latitude, destination.longitude])
+    const stepsCount = Math.max(8, Math.min(40, Math.round(totalDist / 2000)))
+    geometry = []
+    for (let i = 0; i <= stepsCount; i++) {
+      const f = i / stepsCount
+      geometry.push([
+        origin.latitude + (destination.latitude - origin.latitude) * f,
+        origin.longitude + (destination.longitude - origin.longitude) * f,
+      ])
+    }
+  }
 
   let totalDistance = 0
   for (let i = 0; i < geometry.length - 1; i++) {
@@ -317,54 +465,29 @@ function generateFallbackRoute(
   // Approx average speed 35 km/h = ~9.7 m/s
   const duration = Math.round(totalDistance / 9.7)
 
-  // Build steps from corridor key waypoints
   const steps: NavigationStep[] = [
     {
       id: 'step-depart',
       maneuver: 'STRAIGHT',
-      distance: 300,
-      instruction: 'Head towards Sayre Highway',
+      distance: Math.round(totalDistance * 0.1),
+      instruction: 'Depart from origin terminal onto main thoroughfare',
       road_name: 'Terminal Exit',
       coordinates: [origin.latitude, origin.longitude],
     },
     {
-      id: 'step-sayre',
-      maneuver: 'TURN_LEFT',
-      distance: 21500,
-      instruction: 'Turn left onto Sayre Highway',
-      road_name: 'Sayre Highway (Route 10)',
-      coordinates: [8.3678, 124.8641],
-    },
-    {
-      id: 'step-puerto',
-      maneuver: 'SLIGHT_LEFT',
-      distance: 3500,
-      instruction: 'Keep left towards Puerto / Butuan-CDO-Iligan Rd',
-      road_name: 'Sayre Highway',
-      coordinates: [8.4985, 124.7563],
-    },
-    {
-      id: 'step-recto',
-      maneuver: 'TURN_LEFT',
-      distance: 8800,
-      instruction: 'Continue onto C. M. Recto Avenue',
-      road_name: 'C. M. Recto Avenue',
-      coordinates: [8.5009, 124.7505],
-    },
-    {
-      id: 'step-agora',
-      maneuver: 'TURN_RIGHT',
-      distance: 400,
-      instruction: 'Turn right into Agora Terminal',
-      road_name: 'Agora Terminal Rd',
-      coordinates: [8.4880, 124.6565],
+      id: 'step-highway',
+      maneuver: 'STRAIGHT',
+      distance: Math.round(totalDistance * 0.8),
+      instruction: 'Follow main transit corridor toward destination',
+      road_name: 'Highway Route',
+      coordinates: geometry[Math.floor(geometry.length / 2)] || [origin.latitude, origin.longitude],
     },
     {
       id: 'step-arrive',
       maneuver: 'ARRIVE',
       distance: 0,
       instruction: 'Arrive at destination',
-      road_name: isManoloToAgora ? 'Agora Terminal' : 'Manolo Fortich Terminal',
+      road_name: 'Destination Terminal',
       coordinates: [destination.latitude, destination.longitude],
     },
   ]
@@ -406,27 +529,35 @@ export async function calculateRoute(
   const url = `https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&steps=true`
 
   try {
-    // Use CapacitorHttp for mobile compatibility
-    const response = await CapacitorHttp.get({
-      url,
-      connectTimeout: 15000,
-      readTimeout: 15000,
-    })
+    let data: any = null
 
-    if (response.status !== 200) {
-      throw new Error(`Routing service returned status ${response.status}`)
+    // 1. Try CapacitorHttp for native Android devices
+    try {
+      const response = await CapacitorHttp.get({
+        url,
+        connectTimeout: 15000,
+        readTimeout: 15000,
+      })
+      if (response.status === 200 && response.data) {
+        data = response.data
+      }
+    } catch {
+      // 2. Fallback to standard fetch in web browser environments
+      const res = await fetch(url)
+      if (res.ok) {
+        data = await res.json()
+      }
     }
 
-    const data = response.data
-    if (!data.routes || data.routes.length === 0) {
-      throw new Error('No route found by routing engine')
+    if (!data || !data.routes || data.routes.length === 0) {
+      throw new Error('No route found by OSRM routing engine')
     }
 
     const route = data.routes[0]
-    const leg = route.legs[0]
+    const leg = route.legs?.[0] || {}
 
     // Convert GeoJSON coordinates [lon, lat] to Leaflet [lat, lon]
-    const geometry: [number, number][] = route.geometry.coordinates.map(
+    const geometry: [number, number][] = (route.geometry?.coordinates || []).map(
       (coord: [number, number]) => [coord[1], coord[0]]
     )
 

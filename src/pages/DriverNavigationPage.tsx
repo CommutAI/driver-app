@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
@@ -18,7 +18,7 @@ import { useDriverGPS } from '../hooks/useDriverGPS'
 import { useNavigationRoute } from '../hooks/useNavigationRoute'
 import { useRouteProgress } from '../hooks/useRouteProgress'
 import { useNetworkStatus } from '../hooks/useNetworkStatus'
-import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '../services/routingService'
+import { DEFAULT_DESTINATION, DEFAULT_ORIGIN, getTerminalCoordinates, fetchLocationCoordinates } from '../services/routingService'
 import { supabase } from '../lib/supabase'
 import type { Coordinates } from '../types'
 
@@ -107,26 +107,58 @@ export default function DriverNavigationPage() {
     return lower.includes('agora → manolo') || lower.includes('agora - manolo') || lower.includes('agora to manolo')
   }, [selectedRoute, trip, bus])
 
-  // Determine destination from selected route
-  // If Agora -> Manolo: destination is Manolo Fortich (DEFAULT_ORIGIN)
-  // If Manolo -> Agora: destination is Agora Terminal (DEFAULT_DESTINATION)
-  const destination = useMemo<Coordinates>(() => {
-    return isAgoraToManolo ? DEFAULT_ORIGIN : DEFAULT_DESTINATION
-  }, [isAgoraToManolo])
+  // Resolve Route Titles & Endpoints (handles custom routes, active trips, and default corridors)
+  const routeInfo = useMemo(() => {
+    // 1. If active trip has specific endpoints
+    if (trip?.starting_point && trip?.end_point) {
+      return {
+        originTitle: trip.starting_point,
+        destinationTitle: trip.end_point,
+        originCoords: getTerminalCoordinates(trip.starting_point, DEFAULT_ORIGIN),
+        destCoords: getTerminalCoordinates(trip.end_point, DEFAULT_DESTINATION),
+      }
+    }
 
-  const destinationTitle = useMemo(() => {
-    return isAgoraToManolo ? 'Manolo Fortich Terminal' : 'Agora Terminal, CDO'
-  }, [isAgoraToManolo])
+    // 2. Custom route stored in session / localStorage
+    const savedCustomDest = localStorage.getItem('driver_custom_destination')
+    const savedCustomOrig = localStorage.getItem('driver_custom_origin')
+    if (selectedRoute === 'custom' && savedCustomDest && savedCustomOrig) {
+      return {
+        originTitle: savedCustomOrig,
+        destinationTitle: savedCustomDest,
+        originCoords: getTerminalCoordinates(savedCustomOrig, DEFAULT_ORIGIN),
+        destCoords: getTerminalCoordinates(savedCustomDest, DEFAULT_DESTINATION),
+      }
+    }
 
-  const originTitle = useMemo(() => {
-    return isAgoraToManolo ? 'Agora Terminal, CDO' : 'Manolo Fortich Terminal'
-  }, [isAgoraToManolo])
+    // 3. Standard preset corridors
+    return {
+      originTitle: isAgoraToManolo ? 'Agora Terminal, CDO' : 'Manolo Fortich Terminal',
+      destinationTitle: isAgoraToManolo ? 'Manolo Fortich Terminal' : 'Agora Terminal, CDO',
+      originCoords: isAgoraToManolo ? DEFAULT_DESTINATION : DEFAULT_ORIGIN,
+      destCoords: isAgoraToManolo ? DEFAULT_ORIGIN : DEFAULT_DESTINATION,
+    }
+  }, [trip?.starting_point, trip?.end_point, selectedRoute, isAgoraToManolo])
 
-  // Origin for route calculation - use terminal coordinates like web version does
-  // This ensures the route line follows the actual road path (terminal to terminal)
-  const routeOrigin = useMemo<Coordinates>(() => {
-    return isAgoraToManolo ? DEFAULT_DESTINATION : DEFAULT_ORIGIN
-  }, [isAgoraToManolo])
+  const destinationTitle = routeInfo.destinationTitle
+  const originTitle = routeInfo.originTitle
+  const routeOrigin = routeInfo.originCoords
+
+  // Dynamically fetch exact GPS for custom destinations not in static dictionary
+  const [asyncDestCoords, setAsyncDestCoords] = useState<Coordinates | null>(null)
+  useEffect(() => {
+    let active = true
+    if (destinationTitle) {
+      fetchLocationCoordinates(destinationTitle).then((coords) => {
+        if (active && coords) {
+          setAsyncDestCoords(coords)
+        }
+      })
+    }
+    return () => { active = false }
+  }, [destinationTitle])
+
+  const destination = asyncDestCoords || routeInfo.destCoords
 
   // Current GPS coordinates for bus marker and progress tracking
   const currentCoords = useMemo<Coordinates | null>(() => {
@@ -136,7 +168,7 @@ export default function DriverNavigationPage() {
     return null
   }, [location])
 
-  // Routing engine hook - use terminal-to-terminal route like web version
+  // Routing engine hook - routes from origin to destination using OSRM road geometry
   const {
     route,
     isCalculating,
