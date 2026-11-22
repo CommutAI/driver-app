@@ -48,6 +48,7 @@ export default function ProfilePage() {
     { label: 'Role',      value: roleLabel },
     { label: 'Assigned Bus', value: bus ? `${bus.bus_number ? `Bus ${bus.bus_number} · ` : ''}${bus.plate_number}` : 'None' },
     { label: 'GPS Sharing', value: isSharingGps ? 'Broadcasting (Live)' : 'Paused' },
+    { label: 'Last Login',  value: user?.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Just now' },
   ]
 
   return (

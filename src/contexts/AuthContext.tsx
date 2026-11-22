@@ -124,9 +124,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Success - save to state and localStorage
-    setUser(profile)
-    localStorage.setItem('driver_app_user', JSON.stringify(profile))
+    const now = new Date().toISOString()
+
+    // Update last_login_at in staff_users database
+    await (supabase.from('staff_users') as any)
+      .update({ last_login_at: now })
+      .eq('id', profile.id)
+      .catch((err: any) => console.warn('Failed to update last_login_at:', err))
+
+    // Log LOGIN action to audit_logs non-blocking
+    ;(supabase.from('audit_logs') as any)
+      .insert({ username: profile.email, action: 'LOGIN', module: 'driver_app' })
+      .then(() => {/* silent */})
+      .catch(() => {/* silent */})
+
+    // Success - save to state and localStorage with updated last_login_at
+    const updatedProfile: StaffUser = { ...profile, last_login_at: now }
+    setUser(updatedProfile)
+    localStorage.setItem('driver_app_user', JSON.stringify(updatedProfile))
     setError(null)
     setLoading(false)
   }, [fetchProfileByEmail])
