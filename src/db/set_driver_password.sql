@@ -3,7 +3,7 @@
 -- Password: driver123
 
 UPDATE staff_users
-SET password = '$2b$10$Il4qa2/Xg3TLu431Js17BecEZtfTPx0YfZrvfQO/Zx0bBMLUapt8G'
+SET password = '$2b$10$/kAgCAnxbYKK9.c4Y.TS.uuxTE7xU4fg62fV2opbGZvSPsBEuRifO'
 WHERE email = 'driver@commutai.local';
 
 -- Verify the password was set
